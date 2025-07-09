@@ -9,6 +9,8 @@ defmodule Chat.Ollama do
   @default_model_name "llama4:latest"
 
   def chat(parent_pid, messages, model_name \\ @default_model_name) when is_list(messages) do
+
+    IO.inspect("message received: ": messages)
     handler = %{
       on_llm_new_message: fn model, message ->
         # Doesn't seem to do anything in ollama at least

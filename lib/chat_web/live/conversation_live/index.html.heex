@@ -1,0 +1,46 @@
+<.header>
+  Listing Conversations
+  <:actions>
+    <.link patch={~p"/conversations/new"}>
+      <.button>New Conversation</.button>
+    </.link>
+  </:actions>
+</.header>
+
+<.table
+  id="conversations"
+  rows={@streams.conversations}
+  row_click={fn {_id, conversation} -> JS.navigate(~p"/conversations/#{conversation}") end}
+>
+  <:col :let={{_id, conversation}} label="Name">{conversation.name}</:col>
+  <:action :let={{_id, conversation}}>
+    <div class="sr-only">
+      <.link navigate={~p"/conversations/#{conversation}"}>Show</.link>
+    </div>
+    <.link patch={~p"/conversations/#{conversation}/edit"}>Edit</.link>
+  </:action>
+  <:action :let={{id, conversation}}>
+    <.link
+      phx-click={JS.push("delete", value: %{id: conversation.id}) |> hide("##{id}")}
+      data-confirm="Are you sure?"
+    >
+      Delete
+    </.link>
+  </:action>
+</.table>
+
+<.modal
+  :if={@live_action in [:new, :edit]}
+  id="conversation-modal"
+  show
+  on_cancel={JS.patch(~p"/conversations")}
+>
+  <.live_component
+    module={ChatWeb.ConversationLive.FormComponent}
+    id={@conversation.id || :new}
+    title={@page_title}
+    action={@live_action}
+    conversation={@conversation}
+    patch={~p"/conversations"}
+  />
+</.modal>

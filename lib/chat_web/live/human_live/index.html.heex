@@ -1,0 +1,48 @@
+<.header>
+  Listing Humans
+  <:actions>
+    <.link patch={~p"/humans/new"}>
+      <.button>New Human</.button>
+    </.link>
+  </:actions>
+</.header>
+
+<.table
+  id="humans"
+  rows={@streams.humans}
+  row_click={fn {_id, human} -> JS.navigate(~p"/humans/#{human}") end}
+>
+  <:col :let={{_id, human}} label="Name">{human.name}</:col>
+  <:col :let={{_id, human}} label="Hash">{human.hash}</:col>
+  <:col :let={{_id, human}} label="Photo">{human.photo}</:col>
+  <:action :let={{_id, human}}>
+    <div class="sr-only">
+      <.link navigate={~p"/humans/#{human}"}>Show</.link>
+    </div>
+    <.link patch={~p"/humans/#{human}/edit"}>Edit</.link>
+  </:action>
+  <:action :let={{id, human}}>
+    <.link
+      phx-click={JS.push("delete", value: %{id: human.id}) |> hide("##{id}")}
+      data-confirm="Are you sure?"
+    >
+      Delete
+    </.link>
+  </:action>
+</.table>
+
+<.modal
+  :if={@live_action in [:new, :edit]}
+  id="human-modal"
+  show
+  on_cancel={JS.patch(~p"/humans")}
+>
+  <.live_component
+    module={ChatWeb.HumanLive.FormComponent}
+    id={@human.id || :new}
+    title={@page_title}
+    action={@live_action}
+    human={@human}
+    patch={~p"/humans"}
+  />
+</.modal>

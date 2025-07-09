@@ -1,0 +1,171 @@
+<div
+  class="min-h-screen flex bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+  phx-hook="ScreenSize"
+  id="screen-size"
+>
+  <!-- Left Sidebar -->
+  <.conversations_sidebar
+    conversations={@conversations}
+    current_user={@current_user}
+    open={@conversations_sidebar_open}
+  />
+  
+<!-- Main Chat Area -->
+  <div class="flex-1 flex flex-col">
+    <!-- Chat Header -->
+
+
+        <!-- Chat Messages -->
+
+    <main class="flex-1 p-4 overflow-y-auto space-y-6">
+      <%= for message <- @messages do %>
+        <!-- Bot or User Message Layout -->
+        <%= if message.persona.id !=@current_user.persona.id do %>
+          <!-- Bot Message -->
+          <div class="flex items-start space-x-3">
+            <div class="w-20 h-20 bg-gray-600 rounded-full flex items-center justify-center font-bold text-white">
+              <img src={~p"/avatars/#{message.persona.avatar}"} class="" />
+            </div>
+            <div>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                {if message.to_persona != nil,
+                  do: "to: #{message.to_persona.name} from: #{message.persona.name}",
+                  else: message.persona.name}
+              </p>
+              <div class="bg-gray-300 dark:bg-gray-700 rounded-lg p-4 max-w-4xl shadow markdown-div">
+                {raw(Earmark.as_html!(message.text))}
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {message.inserted_at |> Timex.format!("{0M}/{0D} {h12}:{0m}:{0s} {am}")}
+              </p>
+            </div>
+          </div>
+        <% else %>
+          <!-- User Message -->
+          <div class="flex items-start space-x-3 justify-end">
+            <div>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mb-1 text-right">
+                {if message.to_persona != nil,
+                  do: "from: #{message.persona.name} to: #{message.to_persona.name}",
+                  else: message.persona.name}
+              </p>
+              <div class="bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-300 rounded-lg p-4 max-w-4xl shadow text-right markdown-div">
+                {raw(Earmark.as_html!(message.text))}
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 text-right">
+                {message.inserted_at |> Timex.format!("{0M}/{0D} {h12}:{0m}:{0s} {am}")}
+              </p>
+            </div>
+            <div class="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center font-bold text-white">
+              <img src={~p"/avatars/#{message.persona.avatar}"} class="" />
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+
+      <%= if @bot_streaming or @dialog_input_disabled do %>
+        <div class="flex items-start space-x-3">
+          <div class="w-20 h-20 bg-gray-600 rounded-full flex items-center justify-center font-bold text-white markdown-div">
+            <img
+              src={
+                ~p"/avatars/#{if @bot_profile != nil,
+                  do: @bot_profile.persona.avatar,
+                  else: @bot_selected.persona.avatar}"
+              }
+              class=""
+            />
+          </div>
+          <div>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">
+              {if @bot_profile != nil,
+                do: @bot_profile.persona.name,
+                else: @bot_selected.persona.name}
+            </p>
+            <div class="bg-gray-300 dark:bg-gray-700 rounded-lg p-4 max-w-4xl shadow">
+              {raw(Earmark.as_html!(@streaming_tokens))}
+              <%= if @dialog_input_disabled do %>
+                <div class="bg-gray-300 dark:bg-gray-700 rounded-lg p-4 max-w-4xl shadow">
+                  <.spinner />
+                </div>
+              <% end %>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {Timex.now() |> Timex.format!("{0M}/{0D} {h12}:{0m}:{0s} {am}")}
+            </p>
+          </div>
+        </div>
+      <% end %>
+    </main>
+    
+<!-- Input Area -->
+    <footer class="bg-gray-200 dark:bg-gray-800 p-1 sticky bottom-0 z-10">
+      <.button
+        disabled={@dialog_input_disabled}
+        phx-click={
+          JS.push("toggle-bot-input-textarea", value: %{bot_input_textarea: !@bot_input_textarea})
+        }
+        class={"bg-blue-500 hover:bg-blue-600 text-white px-4
+                py-2 rounded-lg float-right" <> "#{if @dialog_input_disabled, do: "disabled:opacity-75", else: ""}"}
+      >
+        <.icon
+          name={if(@bot_input_textarea, do: "hero-chevron-down", else: "hero-chevron-up")}
+          class="h-5 w-5 "
+        />
+      </.button>
+      <%= if @bot_profile !=nil do %>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          To:
+        </p>
+        <.button
+          class="bg-blue-500 hover:bg-blue-600 text-white rounded-lg inline-flex align-middle"
+          phx-click={
+            JS.push("cancel_bot_persona", value: %{to_persona: @bot_profile.persona.name})
+          }
+        >
+          <img src={~p"/avatars/#{@bot_profile.persona.avatar}"} class="min-h-6 max-h-6" />
+          {@bot_profile.persona.name}
+          <.icon name="hero-x-mark-solid" />
+        </.button>
+      <% else %>
+        <div>
+          <%= for persona <- @persona_suggestions do %>
+            <.button
+              class="bg-blue-500 hover:bg-blue-600 text-white rounded-lg inline-flex align-middle"
+              phx-click={JS.push("select_bot_persona", value: %{to_persona: persona.name})}
+            >
+              <img src={~p"/avatars/#{persona.avatar}"} class="min-h-6 max-h-6" />{persona.name}
+            </.button>
+          <% end %>
+        </div>
+      <% end %>
+
+      <.simple_form
+        for={@dialog_input}
+        phx-submit="send"
+        phx-change="letter"
+        left={true}
+        id="dialog_input"
+      >
+        <.input
+          name="message_input"
+          field={@dialog_input["input_message"]}
+          type={if(@bot_input_textarea, do: "textarea", else: "text")}
+          placeholder="Type here..."
+          value={@message_draft}
+          disabled={@dialog_input_disabled}
+        />
+        <:actions>
+          <.button
+            disabled={@dialog_input_disabled}
+            class={"bg-blue-500 hover:bg-blue-600
+                                    text-white px-4 py-2 rounded-lg" <> "#{if @dialog_input_disabled, do:
+                                    "disabled:opacity-75", else: ""}"}
+            phx-disable-with="Sent!"
+          >
+            Send
+          </.button>
+        </:actions>
+      </.simple_form>
+    </footer>
+  </div>
+</div>

@@ -1,0 +1,33 @@
+<.header>
+  Persona {@persona.id}
+  <:subtitle>This is a persona record from your database.</:subtitle>
+  <:actions>
+    <.link patch={~p"/personas/#{@persona}/show/edit"} phx-click={JS.push_focus()}>
+      <.button>Edit persona</.button>
+    </.link>
+  </:actions>
+</.header>
+
+<.list>
+  <:item title="Name">{@persona.name}</:item>
+  <:item title="Avatar">{@persona.avatar}</:item>
+  <:item title="Role">{@persona.role}</:item>
+</.list>
+
+<.back navigate={~p"/personas"}>Back to personas</.back>
+
+<.modal
+  :if={@live_action == :edit}
+  id="persona-modal"
+  show
+  on_cancel={JS.patch(~p"/personas/#{@persona}")}
+>
+  <.live_component
+    module={ChatWeb.PersonaLive.FormComponent}
+    id={@persona.id}
+    title={@page_title}
+    action={@live_action}
+    persona={@persona}
+    patch={~p"/personas/#{@persona}"}
+  />
+</.modal>

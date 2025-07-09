@@ -1,0 +1,33 @@
+<.header>
+  Human {@human.id}
+  <:subtitle>This is a human record from your database.</:subtitle>
+  <:actions>
+    <.link patch={~p"/humans/#{@human}/show/edit"} phx-click={JS.push_focus()}>
+      <.button>Edit human</.button>
+    </.link>
+  </:actions>
+</.header>
+
+<.list>
+  <:item title="Name">{@human.name}</:item>
+  <:item title="Hash">{@human.hash}</:item>
+  <:item title="Photo">{@human.photo}</:item>
+</.list>
+
+<.back navigate={~p"/humans"}>Back to humans</.back>
+
+<.modal
+  :if={@live_action == :edit}
+  id="human-modal"
+  show
+  on_cancel={JS.patch(~p"/humans/#{@human}")}
+>
+  <.live_component
+    module={ChatWeb.HumanLive.FormComponent}
+    id={@human.id}
+    title={@page_title}
+    action={@live_action}
+    human={@human}
+    patch={~p"/humans/#{@human}"}
+  />
+</.modal>

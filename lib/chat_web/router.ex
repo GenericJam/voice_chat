@@ -21,6 +21,7 @@ defmodule ChatWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/avatars/:filename", PageController, :avatar
   end
 
   # Other scopes may use custom stacks.
@@ -68,6 +69,47 @@ defmodule ChatWeb.Router do
       on_mount: [{ChatWeb.UserAuth, :ensure_authenticated}] do
       live "/users/settings", UserSettingsLive, :edit
       live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
+
+      live "/humans", HumanLive.Index, :index
+      live "/humans/new", HumanLive.Index, :new
+      live "/humans/:id/edit", HumanLive.Index, :edit
+
+      live "/humans/:id", HumanLive.Show, :show
+      live "/humans/:id/show/edit", HumanLive.Show, :edit
+
+      live "/bot_models", BotModelLive.Index, :index
+      live "/bot_models/new", BotModelLive.Index, :new
+      live "/bot_models/:id/edit", BotModelLive.Index, :edit
+
+      live "/bot_models/:id", BotModelLive.Show, :show
+      live "/bot_models/:id/show/edit", BotModelLive.Show, :edit
+
+      live "/personas", PersonaLive.Index, :index
+      live "/personas/new", PersonaLive.Index, :new
+      live "/personas/:id/edit", PersonaLive.Index, :edit
+
+      live "/personas/:id", PersonaLive.Show, :show
+      live "/personas/:id/show/edit", PersonaLive.Show, :edit
+
+      live "/conversations", ConversationLive.Index, :index
+      live "/conversations/new", ConversationLive.Index, :new
+      live "/conversations/:id/edit", ConversationLive.Index, :edit
+
+      live "/conversations/:id", ConversationLive.Show, :show
+      live "/conversations/:id/show/edit", ConversationLive.Show, :edit
+
+      live "/messages", MessageLive.Index, :index
+      live "/messages/new", MessageLive.Index, :new
+      live "/messages/:id/edit", MessageLive.Index, :edit
+
+      live "/messages/:id", MessageLive.Show, :show
+      live "/messages/:id/show/edit", MessageLive.Show, :edit
+
+      live "/chat", ChatLive.Index, :index
+
+      live "/chat/new", ChatLive.Index, :new
+
+      live "/chat/:id", ChatLive.Index, :show
     end
   end
 

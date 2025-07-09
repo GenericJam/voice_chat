@@ -1,0 +1,31 @@
+<.header>
+  Conversation {@conversation.id}
+  <:subtitle>This is a conversation record from your database.</:subtitle>
+  <:actions>
+    <.link patch={~p"/conversations/#{@conversation}/show/edit"} phx-click={JS.push_focus()}>
+      <.button>Edit conversation</.button>
+    </.link>
+  </:actions>
+</.header>
+
+<.list>
+  <:item title="Name">{@conversation.name}</:item>
+</.list>
+
+<.back navigate={~p"/conversations"}>Back to conversations</.back>
+
+<.modal
+  :if={@live_action == :edit}
+  id="conversation-modal"
+  show
+  on_cancel={JS.patch(~p"/conversations/#{@conversation}")}
+>
+  <.live_component
+    module={ChatWeb.ConversationLive.FormComponent}
+    id={@conversation.id}
+    title={@page_title}
+    action={@live_action}
+    conversation={@conversation}
+    patch={~p"/conversations/#{@conversation}"}
+  />
+</.modal>

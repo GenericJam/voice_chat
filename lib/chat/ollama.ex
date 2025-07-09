@@ -18,6 +18,7 @@ defmodule Chat.Ollama do
       on_llm_new_delta: fn
         _model, %MessageDelta{} = data ->
           send(parent_pid, {:token, data.content})
+          IO.inspect(token: data.content)
       end,
 
       # Other possible handlers

@@ -1,0 +1,47 @@
+<.header>
+  Listing Bot models
+  <:actions>
+    <.link patch={~p"/bot_models/new"}>
+      <.button>New Bot model</.button>
+    </.link>
+  </:actions>
+</.header>
+
+<.table
+  id="bot_models"
+  rows={@streams.bot_models}
+  row_click={fn {_id, bot_model} -> JS.navigate(~p"/bot_models/#{bot_model}") end}
+>
+  <:col :let={{_id, bot_model}} label="Name">{bot_model.name}</:col>
+  <:col :let={{_id, bot_model}} label="Spec">{inspect(bot_model.spec)}</:col>
+  <:action :let={{_id, bot_model}}>
+    <div class="sr-only">
+      <.link navigate={~p"/bot_models/#{bot_model}"}>Show</.link>
+    </div>
+    <.link patch={~p"/bot_models/#{bot_model}/edit"}>Edit</.link>
+  </:action>
+  <:action :let={{id, bot_model}}>
+    <.link
+      phx-click={JS.push("delete", value: %{id: bot_model.id}) |> hide("##{id}")}
+      data-confirm="Are you sure?"
+    >
+      Delete
+    </.link>
+  </:action>
+</.table>
+
+<.modal
+  :if={@live_action in [:new, :edit]}
+  id="bot_model-modal"
+  show
+  on_cancel={JS.patch(~p"/bot_models")}
+>
+  <.live_component
+    module={ChatWeb.BotModelLive.FormComponent}
+    id={@bot_model.id || :new}
+    title={@page_title}
+    action={@live_action}
+    bot_model={@bot_model}
+    patch={~p"/bot_models"}
+  />
+</.modal>

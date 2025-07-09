@@ -28,11 +28,12 @@ config :chat, ChatWeb.Endpoint,
     esbuild: {Esbuild, :install_and_run, [:chat, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:chat, ~w(--watch)]}
   ]
-  # https: [
-  #   port: 4001,
-  #   keyfile: System.get_env("CHAT_SSL_KEY_PATH"),
-  #   certfile: System.get_env("CHAT_SSL_CERT_PATH")
-  # ]
+
+# https: [
+#   port: 4001,
+#   keyfile: System.get_env("CHAT_SSL_KEY_PATH"),
+#   certfile: System.get_env("CHAT_SSL_CERT_PATH")
+# ]
 
 # ## SSL Support
 #

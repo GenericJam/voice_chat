@@ -1,0 +1,48 @@
+<.header>
+  Listing Personas
+  <:actions>
+    <.link patch={~p"/personas/new"}>
+      <.button>New Persona</.button>
+    </.link>
+  </:actions>
+</.header>
+
+<.table
+  id="personas"
+  rows={@streams.personas}
+  row_click={fn {_id, persona} -> JS.navigate(~p"/personas/#{persona}") end}
+>
+  <:col :let={{_id, persona}} label="Name">{persona.name}</:col>
+  <:col :let={{_id, persona}} label="Avatar">{persona.avatar}</:col>
+  <:col :let={{_id, persona}} label="Role">{persona.role}</:col>
+  <:action :let={{_id, persona}}>
+    <div class="sr-only">
+      <.link navigate={~p"/personas/#{persona}"}>Show</.link>
+    </div>
+    <.link patch={~p"/personas/#{persona}/edit"}>Edit</.link>
+  </:action>
+  <:action :let={{id, persona}}>
+    <.link
+      phx-click={JS.push("delete", value: %{id: persona.id}) |> hide("##{id}")}
+      data-confirm="Are you sure?"
+    >
+      Delete
+    </.link>
+  </:action>
+</.table>
+
+<.modal
+  :if={@live_action in [:new, :edit]}
+  id="persona-modal"
+  show
+  on_cancel={JS.patch(~p"/personas")}
+>
+  <.live_component
+    module={ChatWeb.PersonaLive.FormComponent}
+    id={@persona.id || :new}
+    title={@page_title}
+    action={@live_action}
+    persona={@persona}
+    patch={~p"/personas"}
+  />
+</.modal>

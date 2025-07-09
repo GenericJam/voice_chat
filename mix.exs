@@ -59,7 +59,13 @@ defmodule Chat.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
-      {:langchain, "~> 0.3.0"}
+      {:avatarex, git: "https://github.com/GenericJam/avatarex.git", ref: "deedd09"},
+      {:langchain, "~> 0.3.0"},
+      {:ollama, "0.8.0"},
+      {:earmark, "~> 1.4"},
+      {:timex, "~> 3.7"},
+      {:ex_webrtc, "~> 0.7.0"},
+      {:tidewave, "~> 0.1", only: [:dev, :test]}
     ]
   end
 

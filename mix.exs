@@ -65,7 +65,8 @@ defmodule Chat.MixProject do
       {:earmark, "~> 1.4"},
       {:timex, "~> 3.7"},
       {:ex_webrtc, "~> 0.7.0"},
-      {:tidewave, "~> 0.1", only: [:dev, :test]}
+      {:tidewave, "~> 0.3.2", only: [:dev, :test]},
+      {:mock, "~> 0.3.0", only: :test}
     ]
   end
 

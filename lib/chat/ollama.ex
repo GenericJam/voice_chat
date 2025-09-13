@@ -6,21 +6,22 @@ defmodule Chat.Ollama do
   alias LangChain.Message
   alias LangChain.MessageDelta
 
-  @default_model_name "llama4:latest"
+  # "llama3:8b-instruct-q2_K"
+  # "llama3.2:1b"
+  @default_model_name "llama3.2:1b"
 
   def chat(parent_pid, messages, model_name \\ @default_model_name) when is_list(messages) do
-
-    IO.inspect("message received: ": messages)
     handler = %{
-      on_llm_new_message: fn model, message ->
+      on_llm_new_message: fn _model, _message ->
         # Doesn't seem to do anything in ollama at least
-        IO.inspect(model: model)
-        IO.inspect(on_llm_new_message: message)
+        # IO.inspect(model: model)
+        # IO.inspect(on_llm_new_message: message)
+        send(parent_pid, :new_message)
       end,
       on_llm_new_delta: fn
         _model, %MessageDelta{} = data ->
           send(parent_pid, {:token, data.content})
-          IO.inspect(token: data.content)
+          # IO.inspect(token: data.content)
       end,
 
       # Other possible handlers
@@ -36,7 +37,8 @@ defmodule Chat.Ollama do
           send(parent_pid, {:full_response, data.content})
       end,
       on_message_processing_error: fn _chain, error ->
-        IO.inspect(error: error)
+        # IO.inspect(error: error)
+        send(parent_pid, {:error, inspect(error)})
       end
     }
 

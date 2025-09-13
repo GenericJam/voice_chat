@@ -10,7 +10,7 @@ defmodule ChatWeb.ChatLive.Index do
   @impl true
   def mount(_params, _session, socket) do
     human = Chat.Humans.get_human!(1, [:persona])
-    bot_profile = Chat.Bots.get_bot_profile!(1, [:persona, :bot_model])
+    bot_profile = Chat.Bots.get_bot_profile!(4, [:persona, :bot_model])
 
     socket =
       socket
@@ -122,7 +122,7 @@ defmodule ChatWeb.ChatLive.Index do
     liveview_pid = self()
 
     Task.start_link(fn ->
-      Ollama.chat(liveview_pid, prompt_messages, assigns.bot_profile.bot_model.name)
+      Ollama.chat(liveview_pid, prompt_messages)
     end)
 
     IO.inspect(conversation: conversation)

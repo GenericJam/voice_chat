@@ -229,7 +229,7 @@ defmodule Chat.Conversations do
   You can address other participants by prepending their name with @ like @Dave.
   If you address them with @ it will trigger a response. If you don't want a response just use their name without @.
   Every message is from someone and it may be to someone. The role of the participants are bot or user.
-  Please respond in markdown or plain text. Do not respond in JSON unless the question specifically asks for a JSON response.
+  Please respond in plain text. Do not respond in JSON unless the question specifically asks for a JSON response.
   """
 
   def messages_to_dialog(

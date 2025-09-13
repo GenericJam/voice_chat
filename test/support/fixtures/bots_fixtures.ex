@@ -18,4 +18,28 @@ defmodule Chat.BotsFixtures do
 
     bot_model
   end
+
+  @doc """
+  Generate a bot_profile.
+  """
+  def bot_profile_fixture(attrs \\ %{}) do
+    # Create dependencies if not provided
+    bot_model = Map.get_lazy(attrs, :bot_model, fn -> bot_model_fixture() end)
+
+    persona =
+      Map.get_lazy(attrs, :persona, fn ->
+        Chat.ConversationsFixtures.persona_fixture(%{role: "bot"})
+      end)
+
+    {:ok, bot_profile} =
+      attrs
+      |> Enum.into(%{
+        prompt: "You are a helpful assistant.",
+        bot_model_id: bot_model.id,
+        persona_id: persona.id
+      })
+      |> Chat.Bots.create_bot_profile()
+
+    bot_profile
+  end
 end

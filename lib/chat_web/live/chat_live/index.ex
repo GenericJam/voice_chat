@@ -23,6 +23,11 @@ defmodule ChatWeb.ChatLive.Index do
       |> assign(:conversation, %Conversation{})
       |> assign(:dialog_input_disabled, false)
       |> assign(:message_draft, "")
+      |> assign(:speech_listening, false)
+      |> assign(:speech_supported, true)
+      |> assign(:speech_interim_text, "")
+      |> assign(:auto_submit_countdown, 0)
+      |> assign(:speech_muted, false)
 
     {:ok, socket}
   end
@@ -82,7 +87,213 @@ defmodule ChatWeb.ChatLive.Index do
   end
 
   @impl true
-  def handle_event("send", %{"message_input" => message_input}, %{assigns: assigns} = socket) do
+  def handle_event("send", %{"message_input" => message_input}, socket) do
+    handle_send_message(socket, message_input)
+  end
+
+  @impl true
+  def handle_event("letter", %{"message_input" => message_input}, socket) do
+    socket =
+      socket
+      |> assign(:message_draft, message_input)
+      # Clear countdown when user types
+      |> assign(:auto_submit_countdown, 0)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("toggle_speech", _params, %{assigns: assigns} = socket) do
+    cond do
+      assigns.speech_listening and not assigns.speech_muted ->
+        # Currently listening -> go to muted state
+        socket =
+          socket
+          |> assign(:speech_muted, true)
+          |> assign(:auto_submit_countdown, 0)
+          |> push_event("mute_listening", %{})
+
+        {:noreply, socket}
+
+      assigns.speech_muted ->
+        # Currently muted -> resume listening
+        socket =
+          socket
+          |> assign(:speech_muted, false)
+          |> push_event("unmute_listening", %{})
+
+        {:noreply, socket}
+
+      true ->
+        # Not listening at all -> start listening
+        socket =
+          socket
+          |> assign(:speech_muted, false)
+          |> push_event("start_listening", %{})
+
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("speech_started", _params, socket) do
+    socket =
+      socket
+      |> assign(:speech_listening, true)
+      |> assign(:speech_interim_text, "")
+      |> assign(:auto_submit_countdown, 0)
+      |> assign(:speech_muted, false)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("speech_ended", _params, socket) do
+    socket =
+      socket
+      |> assign(:speech_listening, false)
+      |> assign(:speech_interim_text, "")
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("speech_muted", _params, socket) do
+    socket =
+      socket
+      |> assign(:speech_muted, true)
+      |> assign(:speech_interim_text, "")
+      |> assign(:auto_submit_countdown, 0)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("speech_unmuted", _params, socket) do
+    socket =
+      socket
+      |> assign(:speech_muted, false)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("stop_speech", _params, socket) do
+    socket =
+      socket
+      |> assign(:speech_listening, false)
+      |> assign(:speech_muted, false)
+      |> assign(:speech_interim_text, "")
+      |> assign(:auto_submit_countdown, 0)
+      |> push_event("stop_listening", %{})
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("speech_interim", %{"text" => text}, socket) do
+    socket =
+      socket
+      |> assign(:speech_interim_text, text)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("speech_final", %{"text" => text}, %{assigns: assigns} = socket) do
+    # Append the final speech text to the current message draft with proper spacing
+    current_text = String.trim(assigns.message_draft)
+
+    new_message =
+      if current_text == "", do: String.trim(text), else: "#{current_text} #{String.trim(text)}"
+
+    socket =
+      socket
+      |> assign(:message_draft, new_message)
+      |> assign(:speech_interim_text, "")
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("speech_error", %{"error" => error}, socket) do
+    # Handle speech recognition errors gracefully
+    error_message =
+      case error do
+        nil -> "Unknown speech recognition error"
+        "" -> "Speech recognition error occurred"
+        err when is_binary(err) -> "Speech recognition error: #{err}"
+        _ -> "Speech recognition error occurred"
+      end
+
+    socket =
+      socket
+      |> assign(:speech_listening, false)
+      |> assign(:speech_muted, false)
+      |> assign(:speech_interim_text, "")
+      |> assign(:auto_submit_countdown, 0)
+      |> put_flash(:error, error_message)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("speech_not_supported", _params, socket) do
+    socket =
+      socket
+      |> assign(:speech_supported, false)
+      |> put_flash(:error, "Speech recognition is not supported in this browser")
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("auto_submit_countdown", %{"seconds" => seconds}, socket) do
+    # Handle both integer and float values from JavaScript, with better rounding
+    rounded_seconds =
+      case seconds do
+        n when is_integer(n) ->
+          max(0, n)
+
+        n when is_float(n) ->
+          # Round to 1 decimal place and ensure we don't get negative values
+          max(0.0, Float.round(n, 1))
+
+        _ ->
+          0
+      end
+
+    socket =
+      socket
+      |> assign(:auto_submit_countdown, rounded_seconds)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("auto_submit_speech", _params, %{assigns: assigns} = socket) do
+    # Combine both message draft and speech interim text for auto-submit
+    message_text = String.trim("#{assigns.message_draft} #{assigns.speech_interim_text}")
+
+    if message_text != "" and not assigns.dialog_input_disabled do
+      # Use the same logic as the manual "send" event
+      handle_send_message(socket, message_text)
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event(event, params, socket) do
+    IO.inspect(other_event: event)
+    IO.inspect(other_params: params)
+    {:noreply, socket}
+  end
+
+  # Helper function to handle message sending (extracted from send event)
+  defp handle_send_message(socket, message_input) do
+    assigns = socket.assigns
+
     # Create a conversation if this is the first message
     conversation =
       if assigns.conversation.id == nil do
@@ -125,8 +336,6 @@ defmodule ChatWeb.ChatLive.Index do
       Ollama.chat(liveview_pid, prompt_messages)
     end)
 
-    IO.inspect(conversation: conversation)
-
     socket =
       socket
       |> assign(:messages, messages)
@@ -134,24 +343,11 @@ defmodule ChatWeb.ChatLive.Index do
       |> assign(:conversation, conversation)
       |> assign(:dialog_input_disabled, true)
       |> assign(:message_draft, "")
+      |> assign(:speech_interim_text, "")
+      |> assign(:speech_listening, false)
+      |> assign(:auto_submit_countdown, 0)
       |> push_patch(to: ~p"/chat/#{conversation.id}")
 
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("letter", %{"message_input" => message_input}, socket) do
-    socket =
-      socket
-      |> assign(:message_draft, message_input)
-
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event(event, params, socket) do
-    IO.inspect(other_event: event)
-    IO.inspect(other_params: params)
     {:noreply, socket}
   end
 

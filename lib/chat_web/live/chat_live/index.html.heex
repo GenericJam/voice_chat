@@ -1,5 +1,9 @@
 <%!-- Teams-style Chat Interface with System Theme Support --%>
-<div class="h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex flex-col overflow-hidden">
+<div
+  class="h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex flex-col overflow-hidden"
+  phx-hook="SpeechRecognition"
+  id="speech-container"
+>
   <%!-- Header --%>
   <div class="bg-white dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
     <div class="flex items-center gap-4">
@@ -9,8 +13,44 @@
       </span>
     </div>
     <div class="flex gap-2">
-      <button class="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 px-3 py-2 rounded text-sm text-gray-700 dark:text-gray-100">
-        <.icon name="hero-microphone" class="h-4 w-4" />
+      <button
+        phx-click="toggle_speech"
+        disabled={not @speech_supported}
+        class={[
+          "px-3 py-2 rounded text-sm",
+          cond do
+            @speech_muted ->
+              "bg-orange-500 hover:bg-orange-600 text-white"
+
+            @speech_listening ->
+              "bg-red-500 hover:bg-red-600 text-white animate-pulse"
+
+            @speech_supported ->
+              "bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-100"
+
+            true ->
+              "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed"
+          end
+        ]}
+        title={
+          cond do
+            @speech_muted -> "Unmute microphone"
+            @speech_listening -> "Mute microphone"
+            @speech_supported -> "Start voice input"
+            true -> "Speech not supported"
+          end
+        }
+      >
+        <.icon
+          name={
+            cond do
+              @speech_muted -> "hero-microphone-slash"
+              @speech_listening -> "hero-microphone"
+              true -> "hero-microphone"
+            end
+          }
+          class="h-4 w-4"
+        />
       </button>
       <button class="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 px-3 py-2 rounded text-sm text-gray-700 dark:text-gray-100">
         <.icon name="hero-video-camera" class="h-4 w-4" />
@@ -129,15 +169,182 @@
 
       <%!-- Input Area --%>
       <div class="p-4 border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700">
+        <%!-- Speech Text Display --%>
+        <%= if (@speech_interim_text != "" or @speech_listening) and not @speech_muted do %>
+          <div class="mb-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <div class="flex items-start gap-2">
+              <div class="flex-shrink-0 mt-0.5">
+                <%= if @speech_listening do %>
+                  <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                <% else %>
+                  <.icon
+                    name="hero-microphone"
+                    class="h-4 w-4 text-yellow-600 dark:text-yellow-400"
+                  />
+                <% end %>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm text-yellow-800 dark:text-yellow-200 mb-1 font-medium">
+                  <%= if @speech_listening do %>
+                    🎤 Speech Recognition Active
+                  <% else %>
+                    📝 Recognized Speech
+                  <% end %>
+                </div>
+                <%= if @speech_interim_text != "" do %>
+                  <div class="text-yellow-700 dark:text-yellow-300 text-sm leading-relaxed">
+                    "<span class="italic">{@speech_interim_text}</span>"
+                  </div>
+                <% else %>
+                  <div class="text-yellow-600 dark:text-yellow-400 text-sm italic">
+                    Listening for speech...
+                  </div>
+                <% end %>
+              </div>
+              <%= if @speech_listening do %>
+                <div class="flex gap-1">
+                  <button
+                    phx-click="toggle_speech"
+                    class="flex-shrink-0 text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200"
+                    title="Mute microphone"
+                  >
+                    <.icon name="hero-microphone-slash" class="h-4 w-4" />
+                  </button>
+                  <button
+                    phx-click="stop_speech"
+                    class="flex-shrink-0 text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200"
+                    title="Stop speech recognition"
+                  >
+                    <.icon name="hero-x-mark" class="h-4 w-4" />
+                  </button>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+
+        <%!-- Muted State Display --%>
+        <%= if @speech_muted do %>
+          <div class="mb-3 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+            <div class="flex items-center gap-2">
+              <div class="flex-shrink-0">
+                <.icon
+                  name="hero-microphone-slash"
+                  class="h-4 w-4 text-orange-600 dark:text-orange-400"
+                />
+              </div>
+              <div class="flex-1">
+                <div class="text-sm text-orange-800 dark:text-orange-200 font-medium">
+                  🔇 Microphone Muted
+                </div>
+                <div class="text-orange-600 dark:text-orange-400 text-xs">
+                  Click microphone to resume listening
+                </div>
+              </div>
+              <div class="flex gap-1">
+                <button
+                  phx-click="toggle_speech"
+                  class="flex-shrink-0 text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-200"
+                  title="Unmute microphone"
+                >
+                  <.icon name="hero-microphone" class="h-4 w-4" />
+                </button>
+                <button
+                  phx-click="stop_speech"
+                  class="flex-shrink-0 text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-200"
+                  title="Stop speech recognition"
+                >
+                  <.icon name="hero-x-mark" class="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        <% end %>
+
+        <%!-- Auto-Submit Countdown --%>
+        <%= if @auto_submit_countdown > 0 do %>
+          <div class="mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div class="flex items-center gap-2 text-blue-700 dark:text-blue-300 text-sm">
+              <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <span>Auto-sending in {@auto_submit_countdown}s...</span>
+              <button
+                phx-click="toggle_speech"
+                class="ml-auto text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 text-xs"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        <% end %>
+
         <.simple_form for={@dialog_input} phx-submit="send" phx-change="letter" id="dialog_input">
           <div class="flex gap-3 items-end">
+            <%!-- Speech Recognition Button --%>
+            <%= if @speech_supported do %>
+              <button
+                type="button"
+                phx-click="toggle_speech"
+                disabled={@dialog_input_disabled}
+                class={[
+                  "w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 flex-shrink-0 shadow-sm",
+                  cond do
+                    @dialog_input_disabled ->
+                      "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
+
+                    @speech_muted ->
+                      "bg-orange-500 hover:bg-orange-600 text-white hover:shadow-md transform hover:scale-105"
+
+                    @speech_listening ->
+                      "bg-red-500 hover:bg-red-600 text-white animate-pulse"
+
+                    true ->
+                      "bg-gray-500 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-500 text-white hover:shadow-md transform hover:scale-105"
+                  end
+                ]}
+                title={
+                  cond do
+                    @speech_muted -> "Unmute microphone"
+                    @speech_listening -> "Mute microphone"
+                    true -> "Start voice input"
+                  end
+                }
+              >
+                <.icon
+                  name={
+                    cond do
+                      @speech_muted -> "hero-microphone-slash"
+                      @speech_listening -> "hero-microphone"
+                      true -> "hero-microphone"
+                    end
+                  }
+                  class="h-4 w-4"
+                />
+              </button>
+            <% end %>
+
             <div class="flex-1">
               <textarea
                 name="message_input"
-                placeholder="Type your message here..."
+                placeholder={
+                  if(@speech_listening,
+                    do: "Listening... or type here",
+                    else:
+                      if(@speech_interim_text != "",
+                        do: "Speech text above - continue typing or send",
+                        else: "Type your message or use voice input..."
+                      )
+                  )
+                }
                 value={@message_draft}
                 disabled={@dialog_input_disabled}
-                class="resize-none rounded-3xl bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 focus:ring-1 focus:outline-none w-full px-4 py-3 text-sm min-h-[42px] max-h-32"
+                class={[
+                  "resize-none rounded-3xl border text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 focus:ring-1 focus:outline-none w-full px-4 py-3 text-sm min-h-[42px] max-h-32",
+                  if(@speech_interim_text != "",
+                    do:
+                      "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-600",
+                    else: "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                  )
+                ]}
                 rows="1"
                 phx-hook="AutoResize"
                 id="message-input"
@@ -146,10 +353,13 @@
             </div>
             <button
               type="submit"
-              disabled={@dialog_input_disabled or @message_draft == ""}
+              disabled={
+                @dialog_input_disabled or (@message_draft == "" and @speech_interim_text == "")
+              }
               class={[
                 "w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 flex-shrink-0 shadow-sm",
-                if(@dialog_input_disabled or @message_draft == "",
+                if(
+                  @dialog_input_disabled or (@message_draft == "" and @speech_interim_text == ""),
                   do:
                     "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400",
                   else:

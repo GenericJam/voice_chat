@@ -174,6 +174,14 @@ defmodule Chat.Bots do
 
   """
   def update_bot_profile(%BotProfile{} = bot_profile, attrs) do
+    # Preload persona if we're updating it via nested attributes
+    bot_profile =
+      if Map.has_key?(attrs, :persona) or Map.has_key?(attrs, "persona") do
+        Chat.Repo.preload(bot_profile, :persona)
+      else
+        bot_profile
+      end
+
     bot_profile
     |> BotProfile.changeset(attrs)
     |> Repo.update()

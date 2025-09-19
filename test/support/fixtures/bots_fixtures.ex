@@ -33,6 +33,8 @@ defmodule Chat.BotsFixtures do
 
     {:ok, bot_profile} =
       attrs
+      # Remove struct references
+      |> Map.drop([:persona, :bot_model])
       |> Enum.into(%{
         prompt: "You are a helpful assistant.",
         bot_model_id: bot_model.id,

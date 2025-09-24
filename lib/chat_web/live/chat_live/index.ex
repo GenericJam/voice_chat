@@ -28,6 +28,13 @@ defmodule ChatWeb.ChatLive.Index do
       |> assign(:speech_interim_text, "")
       |> assign(:auto_submit_countdown, 0)
       |> assign(:speech_muted, false)
+      |> assign(:tts_enabled, true)
+      |> assign(:tts_speaking, false)
+      |> assign(:tts_auto_speak, true)
+      |> assign(:available_voices, %{})
+      |> assign(:selected_voice, nil)
+      |> assign(:voice_testing, false)
+      |> assign(:voice_settings_open, false)
 
     {:ok, socket}
   end
@@ -284,6 +291,154 @@ defmodule ChatWeb.ChatLive.Index do
   end
 
   @impl true
+  def handle_event("toggle_tts", _params, socket) do
+    new_auto_speak = not socket.assigns.tts_auto_speak
+
+    socket =
+      socket
+      |> assign(:tts_auto_speak, new_auto_speak)
+      |> put_flash(
+        :info,
+        if(new_auto_speak, do: "Auto-speak enabled", else: "Auto-speak disabled")
+      )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("speak_message", %{"text" => text}, socket) do
+    socket =
+      socket
+      |> push_event("speak_text", %{text: text})
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("stop_tts", _params, socket) do
+    socket =
+      socket
+      |> assign(:tts_speaking, false)
+      |> push_event("stop_speech_synthesis", %{})
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("tts_started", _params, socket) do
+    socket =
+      socket
+      |> assign(:tts_speaking, true)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("tts_ended", _params, socket) do
+    socket =
+      socket
+      |> assign(:tts_speaking, false)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("tts_error", %{"error" => error}, socket) do
+    socket =
+      socket
+      |> assign(:tts_speaking, false)
+      |> put_flash(:error, "Text-to-speech error: #{error}")
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("voices_loaded", %{"voices" => voices}, socket) do
+    socket =
+      socket
+      |> assign(:available_voices, voices)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("voice_selected", params, socket) do
+    socket =
+      socket
+      |> assign(:selected_voice, params)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("voice_changed", params, socket) do
+    socket =
+      socket
+      |> assign(:selected_voice, params)
+      |> put_flash(:info, "Voice changed to #{params["name"]}")
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("change_voice", %{"voice_uri" => voice_uri}, socket) do
+    socket =
+      socket
+      |> push_event("change_voice", %{voiceURI: voice_uri})
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("test_voice", %{"voice_uri" => voice_uri} = params, socket) do
+    test_text = Map.get(params, "text", "Hello! This is a voice test.")
+
+    socket =
+      socket
+      |> assign(:voice_testing, true)
+      |> push_event("test_voice", %{voiceURI: voice_uri, text: test_text})
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("voice_test_started", _params, socket) do
+    socket =
+      socket
+      |> assign(:voice_testing, true)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("voice_test_ended", _params, socket) do
+    socket =
+      socket
+      |> assign(:voice_testing, false)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("voice_test_error", %{"error" => error}, socket) do
+    socket =
+      socket
+      |> assign(:voice_testing, false)
+      |> put_flash(:error, "Voice test error: #{error}")
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("toggle_voice_settings", _params, socket) do
+    socket =
+      socket
+      |> assign(:voice_settings_open, not socket.assigns.voice_settings_open)
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event(event, params, socket) do
     IO.inspect(other_event: event)
     IO.inspect(other_params: params)
@@ -357,6 +512,7 @@ defmodule ChatWeb.ChatLive.Index do
       socket
       |> assign(:bot_streaming, true)
       |> assign(:streaming_tokens, socket.assigns.streaming_tokens <> token)
+      |> push_event("token_mouth_animation", %{token: token})
 
     {:noreply, socket}
   end
@@ -381,6 +537,14 @@ defmodule ChatWeb.ChatLive.Index do
       |> assign(:streaming_tokens, "")
       |> assign(:bot_streaming, false)
       |> assign(:dialog_input_disabled, false)
+
+    # Auto-speak bot response if enabled
+    socket =
+      if assigns.tts_auto_speak and assigns.tts_enabled do
+        socket |> push_event("speak_text", %{text: full_response})
+      else
+        socket
+      end
 
     {:noreply, socket}
   end

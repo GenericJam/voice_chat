@@ -24,6 +24,29 @@ global.SpeechRecognition = jest.fn().mockImplementation(() => ({
 
 global.webkitSpeechRecognition = global.SpeechRecognition
 
+// Mock the Speech Synthesis API for TTS
+global.speechSynthesis = {
+  speak: jest.fn(),
+  cancel: jest.fn(),
+  getVoices: jest.fn(() => [
+    { name: 'Test Female Voice', lang: 'en-US' },
+    { name: 'Test Male Voice', lang: 'en-US' }
+  ]),
+  speaking: false,
+  onvoiceschanged: null
+}
+
+global.SpeechSynthesisUtterance = jest.fn().mockImplementation((text) => ({
+  text,
+  voice: null,
+  rate: 1,
+  pitch: 1,
+  volume: 1,
+  onstart: null,
+  onend: null,
+  onerror: null
+}))
+
 // Mock the LiveView hook interface
 global.mockLiveViewHook = () => ({
   pushEvent: jest.fn(),

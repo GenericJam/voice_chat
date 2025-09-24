@@ -192,13 +192,40 @@ let SpeechRecognition = {
     if (this.recognition && !this.isListening) {
       this.clearSubmitTimeout()
       this.isMuted = false
-      try {
-        console.log('Attempting to start speech recognition...')
-        this.recognition.start()
-        console.log('Speech recognition start() called successfully')
-      } catch (error) {
-        console.error('Speech recognition start error:', error)
-        this.pushEvent('speech_error', { error: error.message })
+      
+      // First, explicitly request microphone permission
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(() => {
+            console.log('Microphone permission granted, starting speech recognition...')
+            try {
+              this.recognition.start()
+              console.log('Speech recognition start() called successfully')
+            } catch (error) {
+              console.error('Speech recognition start error:', error)
+              this.pushEvent('speech_error', { error: error.message })
+            }
+          })
+          .catch((error) => {
+            console.error('Microphone permission denied:', error)
+            let errorMessage = 'Microphone access denied. Please allow microphone access and refresh the page.'
+            if (error.name === 'NotAllowedError') {
+              errorMessage = 'Microphone access denied. Please click "Allow" when prompted and try again.'
+            } else if (error.name === 'NotFoundError') {
+              errorMessage = 'No microphone found. Please connect a microphone and try again.'
+            }
+            this.pushEvent('speech_error', { error: errorMessage })
+          })
+      } else {
+        // Fallback for browsers without getUserMedia - try starting directly
+        try {
+          console.log('Attempting to start speech recognition (no getUserMedia)...')
+          this.recognition.start()
+          console.log('Speech recognition start() called successfully')
+        } catch (error) {
+          console.error('Speech recognition start error:', error)
+          this.pushEvent('speech_error', { error: error.message })
+        }
       }
     } else {
       console.log('Cannot start - isListening:', this.isListening, 'recognition exists:', !!this.recognition)
@@ -301,11 +328,365 @@ let SpeechRecognition = {
   }
 }
 
+// Text-to-Speech hook
+let TextToSpeech = {
+  mounted() {
+    console.log('TextToSpeech hook mounted')
+    this.speechSynthesis = window.speechSynthesis
+    this.currentUtterance = null
+    this.isSupported = 'speechSynthesis' in window
+    this.voices = []
+    this.selectedVoice = null
+    
+    this.initializeTextToSpeech()
+  },
+
+  reconnected() {
+    this.initializeTextToSpeech()
+  },
+
+  initializeTextToSpeech() {
+    console.log('Initializing text-to-speech...')
+    
+    if (!this.isSupported) {
+      console.log('Text-to-speech not supported')
+      this.pushEvent('tts_error', { error: 'Text-to-speech not supported in this browser' })
+      return
+    }
+
+    // Load voices (may need to wait for voices to be loaded)
+    this.loadVoices()
+    
+    // Handle voice loading (Chrome loads voices asynchronously)
+    if (this.speechSynthesis.onvoiceschanged !== undefined) {
+      this.speechSynthesis.onvoiceschanged = () => {
+        this.loadVoices()
+      }
+    }
+
+    // Handle events from LiveView
+    this.handleEvent('speak_text', (data) => {
+      console.log('Received speak_text event:', data.text)
+      this.speak(data.text)
+    })
+
+    this.handleEvent('stop_speech_synthesis', () => {
+      console.log('Received stop_speech_synthesis event')
+      this.stopSpeaking()
+    })
+
+    this.handleEvent('change_voice', (data) => {
+      console.log('Received change_voice event:', data.voiceURI)
+      this.changeVoice(data.voiceURI)
+    })
+
+    this.handleEvent('test_voice', (data) => {
+      console.log('Received test_voice event:', data.voiceURI)
+      this.testVoice(data.voiceURI, data.text || 'Hello! This is a test of this voice.')
+    })
+
+    console.log('TTS initialization complete')
+  },
+
+  loadVoices() {
+    this.voices = this.speechSynthesis.getVoices()
+    console.log('Loaded voices:', this.voices.length)
+    
+    // Send voice list to LiveView for UI
+    this.sendVoicesToLiveView()
+    
+    // Select default voice if none selected yet
+    if (!this.selectedVoice) {
+      this.selectedVoice = this.selectDefaultVoice()
+    }
+    
+    if (this.selectedVoice) {
+      console.log('Selected voice:', this.selectedVoice.name, this.selectedVoice.lang)
+      this.pushEvent('voice_selected', { 
+        name: this.selectedVoice.name, 
+        lang: this.selectedVoice.lang,
+        voiceURI: this.selectedVoice.voiceURI
+      })
+    }
+  },
+
+  selectDefaultVoice() {
+    // Voice priority order for default selection
+    const voicePreferences = [
+      // American English voices (various options)
+      v => v.lang === 'en-US' && v.name.toLowerCase().includes('samantha'),
+      v => v.lang === 'en-US' && v.name.toLowerCase().includes('alex'),
+      v => v.lang === 'en-US' && v.name.toLowerCase().includes('allison'),
+      v => v.lang === 'en-US' && v.name.toLowerCase().includes('ava'),
+      v => v.lang === 'en-US' && v.name.toLowerCase().includes('susan'),
+      v => v.lang === 'en-US' && v.name.toLowerCase().includes('karen'),
+      v => v.lang === 'en-US' && v.name.toLowerCase().includes('female'),
+      v => v.lang === 'en-US',
+      
+      // Other English variants
+      v => v.lang === 'en-CA', // Canadian
+      v => v.lang === 'en-AU', // Australian  
+      v => v.lang === 'en-GB', // British
+      
+      // Any English voice
+      v => v.lang.startsWith('en'),
+      
+      // Any voice as final fallback
+      v => true
+    ]
+    
+    for (const preference of voicePreferences) {
+      const voice = this.voices.find(preference)
+      if (voice) return voice
+    }
+    
+    return this.voices[0] // Ultimate fallback
+  },
+
+  sendVoicesToLiveView() {
+    // Categorize voices by language/region for better UI
+    const categorizedVoices = this.categorizeVoices()
+    this.pushEvent('voices_loaded', { voices: categorizedVoices })
+  },
+
+  categorizeVoices() {
+    const categories = {}
+    
+    this.voices.forEach(voice => {
+      const lang = voice.lang || 'unknown'
+      const region = this.getRegionName(lang)
+      
+      if (!categories[region]) {
+        categories[region] = []
+      }
+      
+      categories[region].push({
+        name: voice.name,
+        lang: voice.lang,
+        voiceURI: voice.voiceURI,
+        localService: voice.localService,
+        default: voice.default
+      })
+    })
+    
+    return categories
+  },
+
+  getRegionName(langCode) {
+    const regionMap = {
+      'en-US': 'English (US)',
+      'en-GB': 'English (UK)',
+      'en-CA': 'English (Canada)',
+      'en-AU': 'English (Australia)',
+      'en-IN': 'English (India)',
+      'en-IE': 'English (Ireland)',
+      'en-ZA': 'English (South Africa)',
+      'es-ES': 'Spanish (Spain)',
+      'es-MX': 'Spanish (Mexico)',
+      'es-US': 'Spanish (US)',
+      'fr-FR': 'French (France)',
+      'fr-CA': 'French (Canada)',
+      'de-DE': 'German',
+      'it-IT': 'Italian',
+      'pt-BR': 'Portuguese (Brazil)',
+      'pt-PT': 'Portuguese (Portugal)',
+      'ja-JP': 'Japanese',
+      'ko-KR': 'Korean',
+      'zh-CN': 'Chinese (Simplified)',
+      'zh-TW': 'Chinese (Traditional)',
+      'ru-RU': 'Russian',
+      'ar-SA': 'Arabic',
+      'hi-IN': 'Hindi',
+      'th-TH': 'Thai',
+      'vi-VN': 'Vietnamese'
+    }
+    
+    return regionMap[langCode] || langCode || 'Other'
+  },
+
+  speak(text) {
+    if (!this.isSupported || !text.trim()) return
+    
+    // Stop any current speech
+    this.stopSpeaking()
+    
+    // Create new utterance
+    this.currentUtterance = new SpeechSynthesisUtterance(text)
+    
+    // Configure utterance
+    if (this.selectedVoice) {
+      this.currentUtterance.voice = this.selectedVoice
+    }
+    this.currentUtterance.rate = 0.9  // Slightly slower for clarity
+    this.currentUtterance.pitch = 1.0
+    this.currentUtterance.volume = 0.8
+    
+    // Event handlers
+    this.currentUtterance.onstart = () => {
+      console.log('TTS started')
+      this.pushEvent('tts_started', {})
+    }
+    
+    this.currentUtterance.onend = () => {
+      console.log('TTS ended')
+      this.pushEvent('tts_ended', {})
+      this.currentUtterance = null
+    }
+    
+    this.currentUtterance.onerror = (event) => {
+      console.error('TTS error:', event.error)
+      this.pushEvent('tts_error', { error: event.error })
+      this.currentUtterance = null
+    }
+    
+    // Add mouth animation on word boundaries
+    this.currentUtterance.onboundary = (event) => {
+      if (event.name === 'word') {
+        // Get the current word being spoken
+        const currentWord = text.substring(event.charIndex, event.charIndex + event.length || 10)
+        console.log('Speaking word:', currentWord, 'at', event.elapsedTime + 'ms')
+        
+        // Send mouth animation event
+        this.pushEvent('mouth_animation', { 
+          word: currentWord,
+          elapsedTime: event.elapsedTime,
+          charIndex: event.charIndex
+        })
+      }
+    }
+    
+    // Speak
+    this.speechSynthesis.speak(this.currentUtterance)
+  },
+
+  changeVoice(voiceURI) {
+    const newVoice = this.voices.find(voice => voice.voiceURI === voiceURI)
+    if (newVoice) {
+      this.selectedVoice = newVoice
+      console.log('Voice changed to:', newVoice.name, newVoice.lang)
+      this.pushEvent('voice_changed', { 
+        name: newVoice.name, 
+        lang: newVoice.lang,
+        voiceURI: newVoice.voiceURI
+      })
+    }
+  },
+
+  testVoice(voiceURI, testText) {
+    const testVoice = this.voices.find(voice => voice.voiceURI === voiceURI)
+    if (!testVoice) return
+    
+    // Stop any current speech
+    this.stopSpeaking()
+    
+    // Create test utterance with the specific voice
+    const testUtterance = new SpeechSynthesisUtterance(testText)
+    testUtterance.voice = testVoice
+    testUtterance.rate = 0.9
+    testUtterance.pitch = 1.0
+    testUtterance.volume = 0.8
+    
+    // Event handlers for test
+    testUtterance.onstart = () => {
+      this.pushEvent('voice_test_started', { voiceURI })
+    }
+    
+    testUtterance.onend = () => {
+      this.pushEvent('voice_test_ended', { voiceURI })
+    }
+    
+    testUtterance.onerror = (event) => {
+      this.pushEvent('voice_test_error', { voiceURI, error: event.error })
+    }
+    
+    // Speak test
+    this.speechSynthesis.speak(testUtterance)
+  },
+
+  stopSpeaking() {
+    if (this.speechSynthesis.speaking) {
+      this.speechSynthesis.cancel()
+    }
+    if (this.currentUtterance) {
+      this.currentUtterance = null
+    }
+  },
+
+  destroyed() {
+    this.stopSpeaking()
+  }
+}
+
+// Mouth Animation hook
+let MouthAnimation = {
+  mounted() {
+    console.log('MouthAnimation hook mounted')
+    this.mouth = document.getElementById('mouth-animation')
+    this.isAnimating = false
+    this.animationQueue = []
+    
+    // Handle TTS mouth animation
+    this.handleEvent('mouth_animation', (data) => {
+      console.log('TTS mouth animation:', data.word)
+      this.animateMouth(data.word.length * 100) // Duration based on word length
+    })
+    
+    // Handle streaming token mouth animation  
+    this.handleEvent('token_mouth_animation', (data) => {
+      console.log('Token mouth animation:', data.token)
+      this.animateMouth(50) // Short animation for each token
+    })
+  },
+  
+  animateMouth(duration = 100) {
+    if (!this.mouth) return
+    
+    // Queue animation if already animating
+    if (this.isAnimating) {
+      this.animationQueue.push(duration)
+      return
+    }
+    
+    this.isAnimating = true
+    
+    // Open mouth
+    this.mouth.style.opacity = '0.8'
+    this.mouth.style.transform = 'translateX(-50%) scaleY(1.5)'
+    
+    setTimeout(() => {
+      if (this.mouth) {
+        // Close mouth
+        this.mouth.style.opacity = '0.3'
+        this.mouth.style.transform = 'translateX(-50%) scaleY(0.8)'
+        
+        setTimeout(() => {
+          if (this.mouth) {
+            this.mouth.style.opacity = '0'
+            this.mouth.style.transform = 'translateX(-50%) scaleY(1)'
+          }
+          
+          this.isAnimating = false
+          
+          // Process next animation in queue
+          if (this.animationQueue.length > 0) {
+            const nextDuration = this.animationQueue.shift()
+            this.animateMouth(nextDuration)
+          }
+        }, duration / 3)
+      }
+    }, duration / 2)
+  },
+  
+  destroyed() {
+    this.animationQueue = []
+  }
+}
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {AutoResize, SpeechRecognition}
+  hooks: {AutoResize, SpeechRecognition, TextToSpeech, MouthAnimation}
 })
 
 // Show progress bar on live navigation and form submits

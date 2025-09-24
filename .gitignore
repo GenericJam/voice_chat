@@ -40,3 +40,4 @@ npm-debug.log
 .env
 
 priv/certs
+priv/static/avatars

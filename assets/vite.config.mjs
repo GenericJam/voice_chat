@@ -18,7 +18,7 @@ export default defineConfig({
       input: ["js/app.js", "css/app.css"],
     },
     outDir: "../priv/static",
-    emptyOutDir: true,
+    emptyOutDir: false, // Don't delete existing static assets like images
   },
   // LV Colocated JS and Hooks
   // https://hexdocs.pm/phoenix_live_view/Phoenix.LiveView.ColocatedJS.html#module-internals

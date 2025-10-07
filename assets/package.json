@@ -3,14 +3,19 @@
   "version": "1.0.0",
   "description": "JavaScript assets for Chat application",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
     "@testing-library/jest-dom": "^6.1.0",
     "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0"
+    "jest-environment-jsdom": "^29.7.0",
+    "phoenix_vite": "file:../deps/phoenix_vite",
+    "vite": "^6.0.0"
   },
   "jest": {
     "testEnvironment": "jsdom",
@@ -27,6 +32,9 @@
   },
   "dependencies": {
     "@met4citizen/talkinghead": "^1.6.0",
+    "phoenix": "file:../deps/phoenix",
+    "phoenix_html": "file:../deps/phoenix_html",
+    "phoenix_live_view": "file:../deps/phoenix_live_view",
     "syllable": "^5.0.1",
     "three": "^0.180.0"
   }

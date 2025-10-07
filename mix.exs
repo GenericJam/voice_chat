@@ -42,8 +42,6 @@ defmodule Chat.MixProject do
       {:phoenix_live_view, "~> 1.0"},
       {:floki, ">= 0.30.0", only: :test},
       {:phoenix_live_dashboard, "~> 0.8.3"},
-      {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
-      {:tailwind, "~> 0.2.0", runtime: Mix.env() == :dev},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.1.1",
@@ -68,7 +66,8 @@ defmodule Chat.MixProject do
       {:tidewave, "~> 0.3.2", only: [:dev, :test]},
       {:mock, "~> 0.3.0", only: :test},
       {:req, "~> 0.5.15"},
-
+      {:phoenix_vite, "~> 0.3.0"},
+      {:igniter, "~> 0.5", only: [:dev]}
     ]
   end
 
@@ -84,13 +83,9 @@ defmodule Chat.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["tailwind chat", "esbuild chat"],
-      "assets.deploy": [
-        "tailwind chat --minify",
-        "esbuild chat --minify",
-        "phx.digest"
-      ]
+      "assets.setup": ["cmd npm install --prefix assets"],
+      "assets.build": ["cmd npm run build --prefix assets"],
+      "assets.deploy": ["cmd npm run build --prefix assets", "phx.digest"]
     ]
   end
 end

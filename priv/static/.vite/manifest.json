@@ -1,0 +1,20 @@
+{
+  "css/app.css": {
+    "file": "assets/app-Buv2YEEv.css",
+    "src": "css/app.css",
+    "isEntry": true
+  },
+  "js/app.js": {
+    "file": "assets/app-rZNQyc_e.js",
+    "name": "app",
+    "src": "js/app.js",
+    "isEntry": true,
+    "assets": [
+      "assets/playback-worklet-DPWNzXsz.js"
+    ]
+  },
+  "node_modules/@met4citizen/talkinghead/modules/playback-worklet.js": {
+    "file": "assets/playback-worklet-DPWNzXsz.js",
+    "src": "node_modules/@met4citizen/talkinghead/modules/playback-worklet.js"
+  }
+}

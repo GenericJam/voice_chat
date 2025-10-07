@@ -30,9 +30,9 @@ config :chat, ChatWeb.Endpoint,
   code_reloader: true,
   debug_errors: true,
   secret_key_base: "hVuaPSzoqb/WwsEOrLnIwIcnL28CZbK+4uVCdSZoLWuRw4p4qJ1cCN8mUyC+VS1i",
+  static_url: [host: "localhost", port: 5173],
   watchers: [
-    esbuild: {Esbuild, :install_and_run, [:chat, ~w(--sourcemap=inline --watch)]},
-    tailwind: {Tailwind, :install_and_run, [:chat, ~w(--watch)]}
+    vite: {PhoenixVite.Npm, :run, [:vite, ~w(dev)]}
   ]
 
 # ## SSL Support

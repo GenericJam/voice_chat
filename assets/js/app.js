@@ -20,9 +20,10 @@ import "phoenix_html"
 // Establish Phoenix Socket and LiveView configuration.
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
-import topbar from "../vendor/topbar"
+import * as topbarModule from "../vendor/topbar"
+const topbar = topbarModule.default || topbarModule
 import {syllable} from "syllable"
-// TalkingHead will be loaded via importmap from CDN to avoid bundling issues
+import {TalkingHead} from "@met4citizen/talkinghead"
 
 // Auto-resize textarea hook
 let AutoResize = {
@@ -1077,13 +1078,60 @@ let AmplitudeGraph = {
   }
 }
 
-// TalkingHead removed temporarily due to bundling issues with import.meta.url
+// TalkingHead 3D Avatar hook
+let TalkingHeadAvatar = {
+  async mounted() {
+    console.log('TalkingHead hook mounted')
+    console.log('Container element:', this.el)
+
+    try {
+      // Initialize TalkingHead - Vite handles import.meta.url correctly
+      this.head = new TalkingHead(this.el, {
+        cameraView: 'head',
+        cameraDistance: 0.5,
+        cameraY: 0
+      })
+
+      console.log('TalkingHead instance created:', this.head)
+
+      // Register globally for TTS integration
+      window.talkingHeadAvatar = this
+
+      // Load a default avatar (using Ready Player Me)
+      const avatarUrl = 'https://models.readyplayer.me/6746a87836c17aaa1a3d5f03.glb'
+
+      console.log('Loading avatar from:', avatarUrl)
+
+      await this.head.showAvatar({
+        url: avatarUrl,
+        body: 'F',
+        avatarMood: 'neutral',
+        lipsyncLang: 'en'
+      })
+
+      console.log('TalkingHead avatar loaded successfully!')
+
+    } catch (error) {
+      console.error('Failed to initialize TalkingHead:', error)
+      console.error('Error stack:', error.stack)
+    }
+  },
+
+  destroyed() {
+    if (this.head) {
+      this.head.dispose()
+    }
+    if (window.talkingHeadAvatar === this) {
+      window.talkingHeadAvatar = null
+    }
+  }
+}
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {AutoResize, SpeechRecognition, TextToSpeech, MouthAnimation, AmplitudeGraph}
+  hooks: {AutoResize, SpeechRecognition, TextToSpeech, MouthAnimation, AmplitudeGraph, TalkingHeadAvatar}
 })
 
 // Show progress bar on live navigation and form submits

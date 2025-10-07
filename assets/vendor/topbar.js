@@ -163,3 +163,5 @@
     this.topbar = topbar;
   }
 }.call(this, window, document));
+
+export default typeof window !== 'undefined' ? window.topbar : undefined;

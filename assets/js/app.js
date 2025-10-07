@@ -20,8 +20,9 @@ import "phoenix_html"
 // Establish Phoenix Socket and LiveView configuration.
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
-import * as topbarModule from "../vendor/topbar"
-const topbar = topbarModule.default || topbarModule
+// Import topbar - temporarily disabled due to bundling issues
+// import topbar from "../vendor/topbar"
+const topbar = { config: () => {}, show: () => {}, hide: () => {} }
 import {syllable} from "syllable"
 import {TalkingHead} from "@met4citizen/talkinghead"
 

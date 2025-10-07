@@ -21,6 +21,8 @@ import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
+import {syllable} from "syllable"
+// TalkingHead will be loaded via importmap from CDN to avoid bundling issues
 
 // Auto-resize textarea hook
 let AutoResize = {
@@ -354,6 +356,18 @@ let TextToSpeech = {
       return
     }
 
+    // Initialize Web Audio API for amplitude analysis
+    this.audioContext = new (window.AudioContext || window.webkitAudioContext)()
+    this.analyser = this.audioContext.createAnalyser()
+    this.analyser.fftSize = 256
+    this.bufferLength = this.analyser.frequencyBinCount
+    this.dataArray = new Uint8Array(this.bufferLength)
+    this.amplitudeHistory = []
+    this.maxHistoryLength = 200 // Keep last 200 samples for graph
+    
+    // Connect to audio destination
+    this.analyser.connect(this.audioContext.destination)
+
     // Load voices (may need to wait for voices to be loaded)
     this.loadVoices()
     
@@ -366,8 +380,8 @@ let TextToSpeech = {
 
     // Handle events from LiveView
     this.handleEvent('speak_text', (data) => {
-      console.log('Received speak_text event:', data.text)
-      this.speak(data.text)
+      console.log('Received speak_text event:', data.text, 'rate:', data.rate)
+      this.speak(data.text, data.rate || 0.9)
     })
 
     this.handleEvent('stop_speech_synthesis', () => {
@@ -504,11 +518,16 @@ let TextToSpeech = {
     return regionMap[langCode] || langCode || 'Other'
   },
 
-  speak(text) {
+  speak(text, rate = 0.9) {
     if (!this.isSupported || !text.trim()) return
     
     // Stop any current speech
     this.stopSpeaking()
+    
+    // Initialize word buffer for syllable-based timing
+    this.wordBuffer = []
+    this.currentWordIndex = 0
+    this.animationTimeouts = [] // Track all animation timeouts
     
     // Create new utterance
     this.currentUtterance = new SpeechSynthesisUtterance(text)
@@ -517,7 +536,7 @@ let TextToSpeech = {
     if (this.selectedVoice) {
       this.currentUtterance.voice = this.selectedVoice
     }
-    this.currentUtterance.rate = 0.9  // Slightly slower for clarity
+    this.currentUtterance.rate = rate
     this.currentUtterance.pitch = 1.0
     this.currentUtterance.volume = 0.8
     
@@ -525,12 +544,7 @@ let TextToSpeech = {
     this.currentUtterance.onstart = () => {
       console.log('TTS started')
       this.pushEvent('tts_started', {})
-    }
-    
-    this.currentUtterance.onend = () => {
-      console.log('TTS ended')
-      this.pushEvent('tts_ended', {})
-      this.currentUtterance = null
+      this.startAmplitudeAnalysis()
     }
     
     this.currentUtterance.onerror = (event) => {
@@ -541,18 +555,53 @@ let TextToSpeech = {
     
     // Add mouth animation on word boundaries
     this.currentUtterance.onboundary = (event) => {
+      console.log('*** NEW ONBOUNDARY HANDLER FIRED ***', event.name)
       if (event.name === 'word') {
         // Get the current word being spoken
-        const currentWord = text.substring(event.charIndex, event.charIndex + event.length || 10)
+        // Extract just the word at charIndex by finding the next space or end
+        const remainingText = text.substring(event.charIndex)
+        const wordMatch = remainingText.match(/^\S+/)
+        const currentWord = wordMatch ? wordMatch[0] : remainingText.substring(0, 10)
         console.log('Speaking word:', currentWord, 'at', event.elapsedTime + 'ms')
         
-        // Send mouth animation event
+        // Add to word buffer
+        this.wordBuffer.push({
+          word: currentWord,
+          startTime: event.elapsedTime,
+          charIndex: event.charIndex
+        })
+        
+        console.log('Word buffer length:', this.wordBuffer.length)
+        
+        // Process previous word if we have timing data
+        if (this.wordBuffer.length >= 2) {
+          console.log('Processing previous word...')
+          this.processPreviousWord()
+        }
+        
+        // Also send to LiveView for any server-side tracking (optional, doesn't block animation)
         this.pushEvent('mouth_animation', { 
           word: currentWord,
           elapsedTime: event.elapsedTime,
           charIndex: event.charIndex
         })
       }
+    }
+    
+    this.currentUtterance.onend = () => {
+      console.log('TTS ended')
+      console.log('Word buffer at end:', this.wordBuffer.length, 'words')
+      
+      // Process the last word in buffer only if it wasn't already processed
+      // (last word gets processed when we don't have a "next" word to calculate duration)
+      if (this.wordBuffer.length > 0) {
+        console.log('Processing final word...')
+        this.processLastWord()
+      }
+      
+      this.pushEvent('tts_ended', {})
+      this.stopAmplitudeAnalysis()
+      this.currentUtterance = null
     }
     
     // Speak
@@ -603,6 +652,138 @@ let TextToSpeech = {
     this.speechSynthesis.speak(testUtterance)
   },
 
+  processPreviousWord() {
+    if (this.wordBuffer.length < 2) return
+    
+    const prevWord = this.wordBuffer[this.wordBuffer.length - 2]
+    const currentWord = this.wordBuffer[this.wordBuffer.length - 1]
+    
+    // Check if already processed
+    if (prevWord.processed) {
+      return
+    }
+    
+    const duration = currentWord.startTime - prevWord.startTime
+    const wordSyllableCount = syllable(prevWord.word)
+    const totalSyllables = wordSyllableCount + 1 // +1 for space after word
+    const timePerSyllable = duration / totalSyllables
+    
+    console.log(`Word: "${prevWord.word}", Duration: ${duration}ms, Word syllables: ${wordSyllableCount}, Total (with space): ${totalSyllables}, Time/syllable: ${timePerSyllable}ms`)
+    
+    // Animate jaw for word syllables only (not the space)
+    this.animateSyllables(prevWord.word, wordSyllableCount, timePerSyllable, prevWord.startTime)
+    prevWord.processed = true
+  },
+  
+  processLastWord() {
+    if (this.wordBuffer.length === 0) return
+    
+    const lastWord = this.wordBuffer[this.wordBuffer.length - 1]
+    
+    // Check if this word was already processed
+    if (lastWord.processed) {
+      console.log('Last word already processed, skipping')
+      return
+    }
+    
+    const syllableCount = syllable(lastWord.word)
+    const estimatedDuration = syllableCount * 150 // Estimate 150ms per syllable
+    const timePerSyllable = estimatedDuration / syllableCount
+    
+    console.log(`Last word: "${lastWord.word}", Syllables: ${syllableCount}, Estimated time/syllable: ${timePerSyllable}ms`)
+    
+    this.animateSyllables(lastWord.word, syllableCount, timePerSyllable, lastWord.startTime)
+    lastWord.processed = true
+  },
+  
+  animateSyllables(word, syllableCount, timePerSyllable, startTime) {
+    console.log(`Animating ${syllableCount} syllables for "${word}"`)
+    
+    for (let i = 0; i < syllableCount; i++) {
+      const delay = i * timePerSyllable
+      
+      // Open jaw (DOWN)
+      const timeoutDown = setTimeout(() => {
+        console.log(`Syllable ${i+1}/${syllableCount} DOWN for "${word}"`)
+        if (window.mouthAnimationHook) {
+          window.mouthAnimationHook.openJaw(word)
+          
+          // Update graph
+          if (window.amplitudeGraphHook) {
+            window.amplitudeGraphHook.addEvent('DOWN', word)
+          }
+        } else {
+          console.error('No mouthAnimationHook found!')
+        }
+      }, delay)
+      
+      this.animationTimeouts.push(timeoutDown)
+      
+      // Close jaw (UP) - halfway through syllable
+      const timeoutUp = setTimeout(() => {
+        console.log(`Syllable ${i+1}/${syllableCount} UP for "${word}"`)
+        if (window.mouthAnimationHook) {
+          window.mouthAnimationHook.closeJaw()
+          
+          // Update graph
+          if (window.amplitudeGraphHook) {
+            window.amplitudeGraphHook.addEvent('UP', word)
+          }
+        }
+      }, delay + (timePerSyllable / 2))
+      
+      this.animationTimeouts.push(timeoutUp)
+    }
+  },
+
+  startAmplitudeAnalysis() {
+    console.log('Starting amplitude analysis...')
+    this.analyzing = true
+    this.amplitudeThreshold = 5 // Threshold for detecting sound
+    console.log('AudioContext state:', this.audioContext.state)
+    console.log('Analyser:', this.analyser)
+    this.analyzeAmplitude()
+  },
+  
+  stopAmplitudeAnalysis() {
+    this.analyzing = false
+  },
+  
+  analyzeAmplitude() {
+    if (!this.analyzing) return
+    
+    // Get frequency data
+    this.analyser.getByteFrequencyData(this.dataArray)
+    
+    // Calculate average amplitude
+    let sum = 0
+    for (let i = 0; i < this.bufferLength; i++) {
+      sum += this.dataArray[i]
+    }
+    const average = sum / this.bufferLength
+    
+    // Log amplitude to console
+    console.log('Amplitude:', Math.round(average), 'Threshold:', this.amplitudeThreshold)
+    
+    // Store in history for graph
+    this.amplitudeHistory.push(average)
+    if (this.amplitudeHistory.length > this.maxHistoryLength) {
+      this.amplitudeHistory.shift()
+    }
+    
+    // Update graph
+    if (window.amplitudeGraphHook) {
+      window.amplitudeGraphHook.updateGraph(this.amplitudeHistory, average)
+    } else {
+      console.log('No amplitudeGraphHook found')
+    }
+    
+    // Note: Jaw control is now handled by syllable-based timing, not amplitude
+    
+    // Continue analysis
+    requestAnimationFrame(() => this.analyzeAmplitude())
+  },
+
   stopSpeaking() {
     if (this.speechSynthesis.speaking) {
       this.speechSynthesis.cancel()
@@ -610,10 +791,22 @@ let TextToSpeech = {
     if (this.currentUtterance) {
       this.currentUtterance = null
     }
+    
+    // Cancel all pending animation timeouts
+    if (this.animationTimeouts) {
+      console.log(`Cancelling ${this.animationTimeouts.length} pending animations`)
+      this.animationTimeouts.forEach(timeout => clearTimeout(timeout))
+      this.animationTimeouts = []
+    }
+    
+    this.stopAmplitudeAnalysis()
   },
 
   destroyed() {
     this.stopSpeaking()
+    if (this.audioContext) {
+      this.audioContext.close()
+    }
   }
 }
 
@@ -621,72 +814,276 @@ let TextToSpeech = {
 let MouthAnimation = {
   mounted() {
     console.log('MouthAnimation hook mounted')
-    this.mouth = document.getElementById('mouth-animation')
-    this.isAnimating = false
-    this.animationQueue = []
+    this.jaw = document.getElementById('lower-jaw')
+    this.logContainer = document.getElementById('jaw-movement-log')
+    this.isOpen = false
+    this.maxLogEntries = 100
+    this.updateScheduled = false
     
-    // Handle TTS mouth animation
-    this.handleEvent('mouth_animation', (data) => {
-      console.log('TTS mouth animation:', data.word)
-      this.animateMouth(data.word.length * 100) // Duration based on word length
+    // Restore log from global storage (persist across LiveView reconnections)
+    if (!window.jawMovementLog) {
+      window.jawMovementLog = []
+    }
+    this.movementLog = window.jawMovementLog
+    
+    // Register globally so TextToSpeech can find us
+    window.mouthAnimationHook = this
+    
+    // Restore existing log display
+    if (this.movementLog.length > 0) {
+      this.updateLogDisplay()
+    } else if (this.logContainer) {
+      this.logContainer.innerHTML = '<div class="text-gray-500">Waiting for speech...</div>'
+    }
+    
+    // Old event handlers removed - now using syllable-based timing
+  },
+  
+  openJaw(word = '') {
+    if (!this.jaw || this.isOpen) return
+    
+    this.isOpen = true
+    this.currentWord = word
+    // Drop jaw straight down 20 pixels
+    this.jaw.style.transform = 'translateY(20px)'
+    
+    // Log the movement
+    this.logMovement('DOWN', word)
+  },
+  
+  closeJaw() {
+    if (!this.jaw || !this.isOpen) return
+    
+    this.isOpen = false
+    const word = this.currentWord || ''
+    this.currentWord = ''
+    // Return jaw to closed position
+    this.jaw.style.transform = 'translateY(0px)'
+    
+    // Log the movement
+    this.logMovement('UP', word)
+  },
+  
+  logMovement(direction, word = '') {
+    const now = new Date()
+    const timestamp = now.toLocaleTimeString('en-US', { 
+      hour12: false, 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      fractionalSecondDigits: 3
     })
     
-    // Handle streaming token mouth animation  
-    this.handleEvent('token_mouth_animation', (data) => {
-      console.log('Token mouth animation:', data.token)
-      this.animateMouth(50) // Short animation for each token
+    const entry = {
+      timestamp,
+      direction,
+      word,
+      fullTimestamp: now.toISOString()
+    }
+    
+    // Add to log
+    this.movementLog.push(entry)
+    
+    // Keep only last 100 entries (truncate from beginning, not reset)
+    if (this.movementLog.length > this.maxLogEntries) {
+      this.movementLog.shift()
+    }
+    
+    // Persist to global storage
+    window.jawMovementLog = this.movementLog
+    
+    // Throttle display updates to avoid overwhelming LiveView
+    this.scheduleLogUpdate()
+    
+    console.log(`Jaw ${direction} at ${timestamp}`)
+  },
+  
+  scheduleLogUpdate() {
+    if (this.updateScheduled) return
+    
+    this.updateScheduled = true
+    requestAnimationFrame(() => {
+      this.updateLogDisplay()
+      this.updateScheduled = false
     })
   },
   
-  animateMouth(duration = 100) {
-    if (!this.mouth) return
+  updateLogDisplay() {
+    if (!this.logContainer) return
     
-    // Queue animation if already animating
-    if (this.isAnimating) {
-      this.animationQueue.push(duration)
-      return
-    }
+    // Reverse the array so newest entries appear first (top)
+    const reversedLog = [...this.movementLog].reverse()
     
-    this.isAnimating = true
+    // Split into 2 columns
+    const columnCount = 2
+    const columns = [[], []]
+    reversedLog.forEach((entry, index) => {
+      const columnIndex = index % columnCount
+      columns[columnIndex].push(entry)
+    })
     
-    // Open mouth
-    this.mouth.style.opacity = '0.8'
-    this.mouth.style.transform = 'translateX(-50%) scaleY(1.5)'
+    // Build HTML for columns
+    const columnsHtml = columns.map(columnEntries => {
+      const entriesHtml = columnEntries.map(entry => {
+        const color = entry.direction === 'DOWN' ? 'text-yellow-400' : 'text-green-400'
+        const wordDisplay = entry.word ? `<span class="text-blue-400">"${entry.word}"</span>` : ''
+        return `<div class="mb-1"><span class="text-gray-500">[${entry.timestamp}]</span> <span class="${color}">Jaw ${entry.direction}</span> ${wordDisplay}</div>`
+      }).join('')
+      return `<div class="flex-1 min-w-0 px-2">${entriesHtml || '<div class="text-gray-500">...</div>'}</div>`
+    }).join('')
     
-    setTimeout(() => {
-      if (this.mouth) {
-        // Close mouth
-        this.mouth.style.opacity = '0.3'
-        this.mouth.style.transform = 'translateX(-50%) scaleY(0.8)'
-        
-        setTimeout(() => {
-          if (this.mouth) {
-            this.mouth.style.opacity = '0'
-            this.mouth.style.transform = 'translateX(-50%) scaleY(1)'
-          }
-          
-          this.isAnimating = false
-          
-          // Process next animation in queue
-          if (this.animationQueue.length > 0) {
-            const nextDuration = this.animationQueue.shift()
-            this.animateMouth(nextDuration)
-          }
-        }, duration / 3)
-      }
-    }, duration / 2)
+    this.logContainer.innerHTML = `<div class="flex gap-4">${columnsHtml}</div>`
   },
   
   destroyed() {
-    this.animationQueue = []
+    this.movementLog = []
+    // Unregister global reference
+    if (window.mouthAnimationHook === this) {
+      window.mouthAnimationHook = null
+    }
   }
 }
+
+// Jaw State Graph hook
+let AmplitudeGraph = {
+  mounted() {
+    console.log('Jaw State Graph hook mounted')
+    this.canvas = this.el
+    this.ctx = this.canvas.getContext('2d')
+    this.width = this.canvas.width
+    this.height = this.canvas.height
+    
+    // State tracking - oscilloscope style
+    this.currentState = 'UP'
+    this.stateChanges = [] // {state: 'UP'|'DOWN', word: string, x: position}
+    this.currentX = this.width // Start from right edge
+    this.pixelsPerEvent = 20 // How far to move per state change
+    this.currentWord = ''
+    
+    // Register globally
+    window.amplitudeGraphHook = this
+    
+    // Draw initial empty graph
+    this.draw()
+  },
+  
+  addEvent(state, word) {
+    // Only add if state actually changed
+    if (state === this.currentState && word === this.currentWord) {
+      return
+    }
+    
+    // Move left for new event (oscilloscope style - new data on right)
+    this.currentX -= this.pixelsPerEvent
+    
+    // Store state change
+    this.stateChanges.push({
+      state: state,
+      word: word,
+      x: this.currentX
+    })
+    
+    // Keep only visible events (plus some buffer)
+    this.stateChanges = this.stateChanges.filter(e => e.x > -100)
+    
+    this.currentState = state
+    this.currentWord = word
+    
+    this.draw()
+  },
+  
+  draw() {
+    const ctx = this.ctx
+    const width = this.width
+    const height = this.height
+    const graphHeight = height * 0.7
+    const textHeight = height * 0.3
+    
+    // Clear canvas
+    ctx.fillStyle = '#1a1a1a'
+    ctx.fillRect(0, 0, width, height)
+    
+    // Draw center line
+    ctx.strokeStyle = '#444'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(0, graphHeight / 2)
+    ctx.lineTo(width, graphHeight / 2)
+    ctx.stroke()
+    
+    // Draw UP/DOWN states as oscilloscope (scrolling right-to-left)
+    if (this.stateChanges.length > 0) {
+      ctx.strokeStyle = '#00ff00'
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      
+      let started = false
+      let lastX = width
+      let lastY = this.currentState === 'DOWN' ? graphHeight * 0.75 : graphHeight * 0.25
+      
+      // Start from right edge with current state
+      ctx.moveTo(width, lastY)
+      
+      // Draw in reverse order (newest to oldest, right to left)
+      for (let i = this.stateChanges.length - 1; i >= 0; i--) {
+        const event = this.stateChanges[i]
+        const x = event.x
+        const y = event.state === 'DOWN' ? graphHeight * 0.75 : graphHeight * 0.25
+        
+        if (x < -50) break // Stop drawing off-screen events
+        
+        // Draw horizontal line to this x position
+        ctx.lineTo(x, lastY)
+        
+        // Draw vertical line to new state
+        ctx.lineTo(x, y)
+        
+        lastX = x
+        lastY = y
+      }
+      
+      ctx.stroke()
+      
+      // Draw word labels below graph (scrolling with waveform)
+      ctx.fillStyle = '#ffff00'
+      ctx.font = '14px monospace'
+      ctx.textAlign = 'center'
+      
+      let lastWordDrawn = null
+      for (let i = this.stateChanges.length - 1; i >= 0; i--) {
+        const event = this.stateChanges[i]
+        if (event.word && event.word !== lastWordDrawn) {
+          const x = event.x
+          if (x >= -50 && x <= width + 50) {
+            ctx.fillText(event.word, x, graphHeight + 25)
+            lastWordDrawn = event.word
+          }
+        }
+      }
+    }
+    
+    // Draw state labels
+    ctx.fillStyle = '#888'
+    ctx.font = '12px monospace'
+    ctx.textAlign = 'left'
+    ctx.fillText('DOWN', 5, graphHeight * 0.80)
+    ctx.fillText('UP', 5, graphHeight * 0.30)
+  },
+  
+  destroyed() {
+    if (window.amplitudeGraphHook === this) {
+      window.amplitudeGraphHook = null
+    }
+  }
+}
+
+// TalkingHead removed temporarily due to bundling issues with import.meta.url
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {AutoResize, SpeechRecognition, TextToSpeech, MouthAnimation}
+  hooks: {AutoResize, SpeechRecognition, TextToSpeech, MouthAnimation, AmplitudeGraph}
 })
 
 // Show progress bar on live navigation and form submits

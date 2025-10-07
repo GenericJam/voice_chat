@@ -110,6 +110,8 @@ defmodule ChatWeb.Router do
       live "/chat/new", ChatLive.Index, :new
 
       live "/chat/:id", ChatLive.Index, :show
+
+      live "/robot_debug", RobotDebugLive.Index, :index
     end
   end
 

@@ -8,17 +8,26 @@
     "test:coverage": "jest --coverage"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.1.0",
     "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0",
-    "@testing-library/jest-dom": "^6.1.0"
+    "jest-environment-jsdom": "^29.7.0"
   },
   "jest": {
     "testEnvironment": "jsdom",
-    "setupFilesAfterEnv": ["<rootDir>/test/setup.js"],
-    "testMatch": ["<rootDir>/test/**/*.test.js"],
+    "setupFilesAfterEnv": [
+      "<rootDir>/test/setup.js"
+    ],
+    "testMatch": [
+      "<rootDir>/test/**/*.test.js"
+    ],
     "collectCoverageFrom": [
       "js/**/*.js",
       "!js/vendor/**"
     ]
+  },
+  "dependencies": {
+    "@met4citizen/talkinghead": "^1.6.0",
+    "syllable": "^5.0.1",
+    "three": "^0.180.0"
   }
 }

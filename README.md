@@ -9,6 +9,28 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
 Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
 
+## SSL Certificates
+
+SSL certificates are stored in `priv/certs/`. The nginx reverse proxy configuration references these certificates.
+
+**Important:** nginx must be run with `sudo` to bind to privileged ports (80 and 443):
+
+```bash
+sudo nginx
+```
+
+To stop nginx:
+
+```bash
+sudo nginx -s stop
+```
+
+To reload nginx configuration:
+
+```bash
+sudo nginx -s reload
+```
+
 ## Learn more
 
   * Official website: https://www.phoenixframework.org/

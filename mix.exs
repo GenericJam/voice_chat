@@ -67,7 +67,8 @@ defmodule Chat.MixProject do
       {:ex_webrtc, "~> 0.7.0"},
       {:tidewave, "~> 0.3.2", only: [:dev, :test]},
       {:mock, "~> 0.3.0", only: :test},
-      {:live_debugger, "~> 0.4.0", only: :dev}
+      {:req, "~> 0.5.15"},
+
     ]
   end
 

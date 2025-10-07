@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import { phoenixVitePlugin } from 'phoenix_vite'
-import tailwindcss from "@tailwindcss/vite";
+import tailwindcss from 'tailwindcss'
+import autoprefixer from 'autoprefixer'
 
 export default defineConfig({
   server: {
@@ -28,8 +29,15 @@ export default defineConfig({
       "phoenix-colocated": `${process.env.MIX_BUILD_PATH}/phoenix-colocated`,
     },
   },
+  css: {
+    postcss: {
+      plugins: [
+        tailwindcss,
+        autoprefixer,
+      ],
+    },
+  },
   plugins: [
-    tailwindcss(),
     phoenixVitePlugin({
       pattern: /\.(ex|heex)$/
     })

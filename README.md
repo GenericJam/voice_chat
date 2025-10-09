@@ -13,7 +13,7 @@ A real-time voice chat application featuring 3D animated avatars powered by AI a
 ### 🗣️ Voice Chat
 - **Voice Input**: Browser-based speech recognition with 1-second auto-submit
 - **Text Input**: Traditional text chat with Enter-to-submit
-- **AI Responses**: Streaming AI chat powered by Anthropic Claude
+- **AI Responses**: Streaming AI chat powered by local Ollama LLMs
 - **Voice Output**: High-quality Kokoro TTS with optimized server-side synthesis
 
 ### 🎨 User Interface
@@ -32,11 +32,13 @@ A real-time voice chat application featuring 3D animated avatars powered by AI a
 
 - **Backend**: Elixir + Phoenix Framework + LiveView
 - **Frontend**: JavaScript + Three.js + TalkingHead
-- **AI**: Anthropic Claude API
+- **AI**: Ollama (local LLM support)
 - **TTS**: Kokoro TTS (ONNX) with PythonX integration
 - **Voice**: Browser Web Speech API
 - **Database**: PostgreSQL
 - **Deployment**: nginx reverse proxy with SSL
+
+> Built with Claude Code as the vibe coding partner
 
 ## Quick Start
 
@@ -67,10 +69,15 @@ mix phx.server
 
 ## Configuration
 
-### Anthropic API Key
-Set your API key in `config/runtime.exs`:
-```elixir
-config :chat, anthropic_api_key: System.get_env("ANTHROPIC_API_KEY")
+### Ollama Setup
+Install and run Ollama locally:
+```bash
+# macOS
+brew install ollama
+ollama serve
+
+# Pull a model (e.g., llama2)
+ollama pull llama2
 ```
 
 ### Kokoro TTS
@@ -119,7 +126,7 @@ Ensure both A (IPv4) and AAAA (IPv6) records are configured for your domain.
 
 ### Voice Pipeline
 ```
-Speech Recognition → LiveView → Claude API → Kokoro TTS → Avatar Playback
+Speech Recognition → LiveView → Ollama LLM → Kokoro TTS → Avatar Playback
 ```
 
 ## Project Structure
@@ -148,4 +155,4 @@ priv/
 - Phoenix Framework: https://www.phoenixframework.org/
 - TalkingHead: https://github.com/met4citizen/TalkingHead
 - Kokoro TTS: https://huggingface.co/hexgrad/Kokoro-82M
-- Anthropic Claude: https://www.anthropic.com/
+- Ollama: https://ollama.ai/

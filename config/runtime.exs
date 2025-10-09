@@ -48,21 +48,26 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
-  port = String.to_integer(System.get_env("PORT") || "4000")
+  host = System.get_env("PHX_HOST") || "chat.boltbrain.ca"
+  http_port = String.to_integer(System.get_env("HTTP_PORT") || "4000")
+  https_port = String.to_integer(System.get_env("HTTPS_PORT") || "4001")
 
   config :chat, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :chat, ChatWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://hexdocs.pm/bandit/Bandit.html#t:options/0
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
-      port: port
+      port: http_port
     ],
+    https: [
+      port: https_port,
+      cipher_suite: :strong,
+      keyfile: System.get_env("CHAT_SSL_KEY_PATH") || "/Users/kevin/code/chat/priv/certs/selfsigned_key.pem",
+      certfile: System.get_env("CHAT_SSL_CERT_PATH") || "/Users/kevin/code/chat/priv/certs/selfsigned.pem",
+      ip: {0, 0, 0, 0, 0, 0, 0, 0}
+    ],
+    check_origin: ["https://chat.boltbrain.ca"],
     secret_key_base: secret_key_base
 
   # ## SSL Support

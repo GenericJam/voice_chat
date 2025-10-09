@@ -201,12 +201,13 @@
         <% end %>
       </div>
 
-      <button class="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 px-3 py-2 rounded text-sm text-gray-700 dark:text-gray-100">
-        <.icon name="hero-cog-6-tooth" class="h-4 w-4" />
-      </button>
-      <button class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-medium text-white">
+      <.link
+        href={~p"/users/log_out"}
+        method="delete"
+        class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm font-medium text-white"
+      >
         Leave
-      </button>
+      </.link>
     </div>
   </div>
 

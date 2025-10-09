@@ -70,7 +70,7 @@ let SpeechRecognition = {
     this.finalTranscript = ''
     this.submitTimeout = null
     this.countdownInterval = null
-    this.submitDelay = 2000 // 2 seconds
+    this.submitDelay = 1000 // 1 second
 
     this.initializeSpeechRecognition()
   },

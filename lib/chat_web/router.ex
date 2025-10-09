@@ -127,7 +127,7 @@ defmodule ChatWeb.Router do
       live "/terminator", TerminatorLive.Index, :index
       live "/avatar", AvatarLive.Index, :index
       live "/avatar2", Avatar2Live.Index, :index
-      live "/avatar3", Avatar3Live.Index, :index
+      # live "/avatar3", Avatar3Live.Index, :index  # Disabled - avatar integrated into /chat
       live "/score", ScoreLive.Index, :index
     end
   end

@@ -14,6 +14,8 @@ defmodule Chat.Application do
       {Phoenix.PubSub, name: Chat.PubSub},
       # Start the Finch HTTP client for sending emails
       {Finch, name: Chat.Finch},
+      # Start TTS server with pre-loaded Kokoro model
+      Chat.TTSServer,
       # Start a worker by calling: Chat.Worker.start_link(arg)
       # {Chat.Worker, arg},
       # Start to serve requests, typically the last entry

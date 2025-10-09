@@ -12,6 +12,46 @@ defmodule ChatWeb.ChatLive.Index do
     human = Chat.Humans.get_human!(1, [:persona])
     bot_profile = Chat.Bots.get_bot_profile!(4, [:persona, :bot_model])
 
+    # Kokoro TTS voices organized by category
+    kokoro_voices = %{
+      "American English Female" => [
+        %{id: "af_alloy", name: "Alloy"},
+        %{id: "af_aoede", name: "Aoede"},
+        %{id: "af_bella", name: "Bella"},
+        %{id: "af_heart", name: "Heart"},
+        %{id: "af_jessica", name: "Jessica"},
+        %{id: "af_kore", name: "Kore"},
+        %{id: "af_nicole", name: "Nicole"},
+        %{id: "af_nova", name: "Nova"},
+        %{id: "af_river", name: "River"},
+        %{id: "af_sarah", name: "Sarah"},
+        %{id: "af_sky", name: "Sky"}
+      ],
+      "American English Male" => [
+        %{id: "am_adam", name: "Adam"},
+        %{id: "am_echo", name: "Echo"},
+        %{id: "am_eric", name: "Eric"},
+        %{id: "am_fenrir", name: "Fenrir"},
+        %{id: "am_liam", name: "Liam"},
+        %{id: "am_michael", name: "Michael"},
+        %{id: "am_onyx", name: "Onyx"},
+        %{id: "am_puck", name: "Puck"},
+        %{id: "am_santa", name: "Santa"}
+      ],
+      "British English Female" => [
+        %{id: "bf_alice", name: "Alice"},
+        %{id: "bf_emma", name: "Emma"},
+        %{id: "bf_isabella", name: "Isabella"},
+        %{id: "bf_lily", name: "Lily"}
+      ],
+      "British English Male" => [
+        %{id: "bm_daniel", name: "Daniel"},
+        %{id: "bm_fable", name: "Fable"},
+        %{id: "bm_george", name: "George"},
+        %{id: "bm_lewis", name: "Lewis"}
+      ]
+    }
+
     socket =
       socket
       |> assign(:human, human)
@@ -35,6 +75,10 @@ defmodule ChatWeb.ChatLive.Index do
       |> assign(:selected_voice, nil)
       |> assign(:voice_testing, false)
       |> assign(:voice_settings_open, false)
+      |> assign(:selected_person, "julia")
+      |> assign(:kokoro_voices, kokoro_voices)
+      |> assign(:selected_avatar_voice, "af_bella")
+      |> assign(:avatar_voice_settings_open, false)
 
     {:ok, socket}
   end
@@ -96,6 +140,24 @@ defmodule ChatWeb.ChatLive.Index do
   @impl true
   def handle_event("send", %{"message_input" => message_input}, socket) do
     handle_send_message(socket, message_input)
+  end
+
+  @impl true
+  def handle_event("change_person", %{"person" => person}, socket) do
+    # Reset to default voice for the selected avatar
+    default_voice = case person do
+      "julia" -> "af_bella"
+      "david" -> "am_fenrir"
+      _ -> "af_bella"
+    end
+
+    socket =
+      socket
+      |> assign(:selected_person, person)
+      |> assign(:selected_avatar_voice, default_voice)
+      |> push_event("change_avatar_voice", %{voice: default_voice})
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -439,6 +501,21 @@ defmodule ChatWeb.ChatLive.Index do
   end
 
   @impl true
+  def handle_event("toggle_avatar_voice_settings", _params, socket) do
+    {:noreply, assign(socket, :avatar_voice_settings_open, not socket.assigns.avatar_voice_settings_open)}
+  end
+
+  @impl true
+  def handle_event("change_avatar_voice", %{"voice_id" => voice_id}, socket) do
+    socket =
+      socket
+      |> assign(:selected_avatar_voice, voice_id)
+      |> push_event("change_avatar_voice", %{voice: voice_id})
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event(event, params, socket) do
     IO.inspect(other_event: event)
     IO.inspect(other_params: params)
@@ -538,10 +615,10 @@ defmodule ChatWeb.ChatLive.Index do
       |> assign(:bot_streaming, false)
       |> assign(:dialog_input_disabled, false)
 
-    # Auto-speak bot response if enabled
+    # Auto-speak bot response if enabled - route through 3D avatar
     socket =
       if assigns.tts_auto_speak and assigns.tts_enabled do
-        socket |> push_event("speak_text", %{text: full_response})
+        socket |> push_event("speak_avatar", %{text: full_response})
       else
         socket
       end

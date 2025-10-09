@@ -34,13 +34,24 @@ let AutoResize = {
   mounted() {
     this.el.style.height = 'auto'
     this.el.style.height = this.el.scrollHeight + 'px'
-    
+
     this.el.addEventListener('input', () => {
       this.el.style.height = 'auto'
       this.el.style.height = this.el.scrollHeight + 'px'
     })
+
+    // Submit on Enter, newline on Shift+Enter
+    this.el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        const form = this.el.closest('form')
+        if (form) {
+          form.requestSubmit()
+        }
+      }
+    })
   },
-  
+
   updated() {
     this.el.style.height = 'auto'
     this.el.style.height = this.el.scrollHeight + 'px'

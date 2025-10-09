@@ -12,6 +12,15 @@ export const Avatar3Hook = {
     this.handleEvent('speak_avatar', async (data) => {
       await this.speakWithServerTTS(data.text);
     });
+
+    // Handle voice changes from LiveView
+    this.handleEvent('change_avatar_voice', (data) => {
+      const person = this.personEl.options[this.personEl.selectedIndex].value;
+      if (this.persons[person]) {
+        this.persons[person].voice = data.voice;
+        console.log(`Changed ${person} voice to ${data.voice}`);
+      }
+    });
   },
 
   async initializeAvatar() {

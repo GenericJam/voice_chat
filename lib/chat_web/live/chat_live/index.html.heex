@@ -1,3 +1,14 @@
+<%!-- Import map for TalkingHead and Three.js --%>
+<script type="importmap">
+{ "imports":
+  {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js/+esm",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "talkinghead": "https://cdn.jsdelivr.net/gh/met4citizen/TalkingHead@1.5/modules/talkinghead.mjs"
+  }
+}
+</script>
+
 <%!-- Teams-style Chat Interface with System Theme Support --%>
 <div
   class="h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex flex-col overflow-hidden"
@@ -12,6 +23,16 @@
       <span class="text-gray-500 dark:text-gray-400 text-sm">
         {Timex.now() |> Timex.format!("{h12}:{0m}")}
       </span>
+      <form phx-change="change_person">
+        <select
+          id="person"
+          name="person"
+          class="px-3 py-1.5 text-sm rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+        >
+          <option value="julia" selected={@selected_person == "julia"}>Julia</option>
+          <option value="david" selected={@selected_person == "david"}>David</option>
+        </select>
+      </form>
     </div>
     <div class="flex gap-2">
       <button
@@ -83,163 +104,96 @@
         </button>
       <% end %>
 
-      <%!-- Voice Selection Dropdown --%>
+      <%!-- Avatar Voice Selection Dropdown --%>
       <div class="relative">
         <button
-          phx-click="toggle_voice_settings"
+          phx-click="toggle_avatar_voice_settings"
           class={[
             "px-3 py-2 rounded text-sm",
-            if(@voice_settings_open,
+            if(@avatar_voice_settings_open,
               do: "bg-blue-500 hover:bg-blue-600 text-white",
               else:
                 "bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-100"
             )
           ]}
-          title="Voice settings"
+          title="Avatar voice settings"
         >
           <.icon name="hero-adjustments-horizontal" class="h-4 w-4" />
         </button>
 
-        <%= if @voice_settings_open do %>
+        <%= if @avatar_voice_settings_open do %>
           <div class="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
             <div class="p-4">
               <div class="flex justify-between items-center mb-3">
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  Voice Settings
+                  Avatar Voice (Kokoro TTS)
                 </h3>
                 <button
-                  phx-click="toggle_voice_settings"
+                  phx-click="toggle_avatar_voice_settings"
                   class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   <.icon name="hero-x-mark" class="h-4 w-4" />
                 </button>
               </div>
 
-              <%= if @selected_voice do %>
-                <div class="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
-                  <div class="flex justify-between items-start">
-                    <div>
-                      <div class="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">
-                        Current Voice
-                      </div>
-                      <div class="text-sm text-blue-700 dark:text-blue-300 font-medium">
-                        {@selected_voice["name"]}
-                      </div>
-                      <div class="text-xs text-blue-600 dark:text-blue-400">
-                        {@selected_voice["lang"]}
-                      </div>
-                    </div>
-                    <button
-                      phx-click="test_voice"
-                      phx-value-voice_uri={@selected_voice["voiceURI"]}
-                      phx-value-text="Hello! This is how I sound when speaking your messages."
-                      class="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-800 hover:bg-blue-200 dark:hover:bg-blue-700 text-blue-700 dark:text-blue-300 rounded flex items-center gap-1"
-                      disabled={@voice_testing}
-                    >
-                      <%= if @voice_testing do %>
-                        <.icon name="hero-ellipsis-horizontal" class="h-3 w-3 animate-pulse" />
-                        Testing...
-                      <% else %>
-                        <.icon name="hero-play" class="h-3 w-3" /> Test
-                      <% end %>
-                    </button>
-                  </div>
+              <div class="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                <div class="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">
+                  Current Voice
                 </div>
-              <% end %>
+                <div class="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                  {@selected_avatar_voice}
+                </div>
+              </div>
 
-              <%= if @available_voices != %{} do %>
+              <%= if @kokoro_voices != %{} do %>
                 <div class="max-h-64 overflow-y-auto space-y-3">
-                  <%= for {region, voices} <- @available_voices do %>
+                  <%= for {category, voices} <- @kokoro_voices do %>
                     <div>
                       <div class="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 sticky top-0 bg-white dark:bg-gray-800 py-1">
-                        {region}
+                        {category}
                       </div>
                       <div class="space-y-1">
                         <%= for voice <- voices do %>
-                          <div class="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded text-sm group">
+                          <div class="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded text-sm">
                             <div class="flex-1 min-w-0">
                               <div class="font-medium text-gray-900 dark:text-gray-100 truncate">
-                                {voice["name"]}
+                                {voice.name}
                               </div>
-                              <div class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                                {voice["lang"]}
-                                <%= if voice["localService"] do %>
-                                  <span class="px-1 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded text-xs">
-                                    Local
-                                  </span>
-                                <% end %>
-                                <%= if voice["default"] do %>
-                                  <span class="px-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-400 rounded text-xs">
-                                    Default
-                                  </span>
-                                <% end %>
+                              <div class="text-xs text-gray-500 dark:text-gray-400">
+                                {voice.id}
                               </div>
                             </div>
-                            <div class="flex gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                phx-click="test_voice"
-                                phx-value-voice_uri={voice["voiceURI"]}
-                                phx-value-text="Hello! This is a test of my voice."
-                                class="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300 rounded"
-                                title="Test voice"
-                                disabled={@voice_testing}
-                              >
-                                <%= if @voice_testing do %>
-                                  <.icon
-                                    name="hero-ellipsis-horizontal"
-                                    class="h-3 w-3 animate-pulse"
-                                  />
-                                <% else %>
-                                  <.icon name="hero-play" class="h-3 w-3" />
-                                <% end %>
-                              </button>
-                              <button
-                                phx-click="change_voice"
-                                phx-value-voice_uri={voice["voiceURI"]}
-                                class={[
-                                  "px-2 py-1 text-xs rounded transition-colors",
-                                  if(
-                                    @selected_voice &&
-                                      @selected_voice["voiceURI"] == voice["voiceURI"],
-                                    do: "bg-blue-500 text-white cursor-default",
-                                    else:
-                                      "bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300"
-                                  )
-                                ]}
-                                disabled={
-                                  @selected_voice &&
-                                    @selected_voice["voiceURI"] == voice["voiceURI"]
-                                }
-                              >
-                                <%= if @selected_voice && @selected_voice["voiceURI"] == voice["voiceURI"] do %>
-                                  <.icon name="hero-check" class="h-3 w-3" />
-                                <% else %>
-                                  Use
-                                <% end %>
-                              </button>
-                            </div>
+                            <button
+                              phx-click="change_avatar_voice"
+                              phx-value-voice_id={voice.id}
+                              class={[
+                                "px-2 py-1 text-xs rounded transition-colors",
+                                if(@selected_avatar_voice == voice.id,
+                                  do: "bg-blue-500 text-white cursor-default",
+                                  else:
+                                    "bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300"
+                                )
+                              ]}
+                              disabled={@selected_avatar_voice == voice.id}
+                            >
+                              <%= if @selected_avatar_voice == voice.id do %>
+                                <.icon name="hero-check" class="h-3 w-3" />
+                              <% else %>
+                                Use
+                              <% end %>
+                            </button>
                           </div>
                         <% end %>
                       </div>
                     </div>
                   <% end %>
                 </div>
-              <% else %>
-                <div class="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
-                  <div class="mb-2">
-                    <.icon name="hero-speaker-wave" class="h-8 w-8 mx-auto text-gray-400" />
-                  </div>
-                  <div>Loading voices...</div>
-                  <div class="text-xs mt-2">
-                    If no voices appear, your browser may not support text-to-speech.
-                  </div>
-                </div>
               <% end %>
 
               <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
                 <div class="text-xs text-gray-500 dark:text-gray-400">
                   💡 <strong>Tip:</strong>
-                  Local voices provide better quality and work offline. Your choice is automatically saved.
+                  Each avatar has a default voice. Switching avatars resets to their default voice.
                 </div>
               </div>
             </div>
@@ -258,61 +212,25 @@
 
   <%!-- Main Content Area --%>
   <div class="flex-1 flex min-h-0">
-    <%!-- Bot Video Area (Left) --%>
-    <div class="flex-1 bg-gray-50 dark:bg-gray-800 flex flex-col items-center justify-center relative">
-      <%!-- Bot Avatar with Mouth Animation --%>
+    <%!-- 3D Avatar Area (Left) --%>
+    <div class="flex-1 relative" phx-hook="Avatar3Hook" id="avatar3-container" phx-update="ignore">
+      <%!-- 3D Avatar Canvas --%>
+      <div id="avatar" class="absolute inset-0 w-full h-full"></div>
+
+      <%!-- Subtitles --%>
       <div
-        class={[
-          "w-72 h-72 rounded-full border-4 transition-all duration-300 overflow-hidden relative",
-          if(@bot_streaming or @tts_speaking,
-            do: "border-green-400 shadow-lg shadow-green-400/30",
-            else: "border-gray-300 dark:border-gray-600"
-          )
-        ]}
-        phx-hook="MouthAnimation"
-        id="bot-avatar"
+        id="subtitles"
+        class="absolute bottom-[6vh] left-1/2 -translate-x-1/2 w-4/5 text-center text-white text-2xl md:text-3xl lg:text-4xl font-semibold drop-shadow-lg z-20 overflow-hidden"
+        style="line-height: 1.2; max-height: 2.4em;"
       >
-        <img
-          src={~p"/avatars/#{@bot_profile.persona.avatar}"}
-          alt={@bot_profile.persona.name}
-          class="w-full h-full object-cover"
-          id="bot-face"
-        />
-
-        <%!-- Animated Mouth Overlay --%>
-        <div
-          class="absolute bottom-20 left-1/2 transform -translate-x-1/2 w-8 h-4 bg-black rounded-full opacity-0 transition-all duration-150"
-          id="mouth-animation"
-          style="transform-origin: center;"
-        >
-        </div>
       </div>
 
-      <%!-- Bot Info --%>
-      <div class="text-center mt-6">
-        <h2 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-          {@bot_profile.persona.name}
-        </h2>
-        <p class="text-gray-600 dark:text-gray-400 mt-2">
-          <%= if @bot_streaming do %>
-            <span class="flex items-center gap-2 justify-center">
-              <.spinner /> Thinking...
-            </span>
-          <% else %>
-            AI Assistant
-          <% end %>
-        </p>
+      <%!-- Info div for JS hook errors --%>
+      <div
+        id="info"
+        class="absolute bottom-4 left-4 right-4 hidden text-center text-lg p-4 bg-red-500/90 text-white rounded-lg z-10"
+      >
       </div>
-
-      <%!-- Status Indicator --%>
-      <%= if @bot_streaming do %>
-        <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2">
-          <div class="bg-green-500 text-white px-4 py-2 rounded-full text-sm flex items-center gap-2">
-            <div class="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-            Processing your message...
-          </div>
-        </div>
-      <% end %>
     </div>
 
     <%!-- Chat Panel (Right) --%>

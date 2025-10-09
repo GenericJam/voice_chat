@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- 😂 Rolling on the Floor Laughing emoji -->
+  <circle cx="50" cy="50" r="45" fill="#FFDD67"/>
+  
+  <!-- Left eye (laughing) -->
+  <path d="M30 35 Q35 45 40 35" stroke="#664500" stroke-width="4" fill="none" stroke-linecap="round"/>
+  
+  <!-- Right eye (laughing) -->
+  <path d="M60 35 Q65 45 70 35" stroke="#664500" stroke-width="4" fill="none" stroke-linecap="round"/>
+  
+  <!-- Tears of joy -->
+  <circle cx="42" cy="48" r="3" fill="#5DADEC"/>
+  <circle cx="72" cy="48" r="3" fill="#5DADEC"/>
+  
+  <!-- Wide laughing mouth -->
+  <path d="M25 60 Q50 85 75 60" stroke="#664500" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M25 60 Q50 80 75 60" fill="#664500"/>
+  
+  <!-- Teeth -->
+  <rect x="35" y="60" width="6" height="8" fill="white" rx="1"/>
+  <rect x="44" y="60" width="6" height="8" fill="white" rx="1"/>
+  <rect x="53" y="60" width="6" height="8" fill="white" rx="1"/>
+  <rect x="62" y="60" width="6" height="8" fill="white" rx="1"/>
+</svg>

@@ -23,6 +23,12 @@ defmodule ChatWeb.Router do
     post "/tts", TTSController, :synthesize
   end
 
+  scope "/api", ChatWeb do
+    pipe_through :browser
+
+    post "/auto_login", AutoLoginController, :create
+  end
+
   scope "/", ChatWeb do
     pipe_through :browser
 
@@ -121,6 +127,8 @@ defmodule ChatWeb.Router do
       live "/terminator", TerminatorLive.Index, :index
       live "/avatar", AvatarLive.Index, :index
       live "/avatar2", Avatar2Live.Index, :index
+      live "/avatar3", Avatar3Live.Index, :index
+      live "/score", ScoreLive.Index, :index
     end
   end
 

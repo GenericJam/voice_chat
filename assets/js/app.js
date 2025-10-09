@@ -27,6 +27,7 @@ const topbar = { config: () => {}, show: () => {}, hide: () => {} }
 // Import avatar and animation modules
 import { MouthAnimation, AmplitudeGraph, processPreviousWord, processLastWord, animateSyllables } from "./terminator-animation.js"
 import { TalkingHeadAvatar } from "./avatar-3d.js"
+import { Avatar3Hook } from "./avatar3.js"
 
 // Auto-resize textarea hook
 let AutoResize = {
@@ -763,11 +764,34 @@ let TextToSpeech = {
 
 
 
+// Auto login hook
+let AutoLogin = {
+  mounted() {
+    this.handleEvent('auto_login', () => {
+      // Submit the form to /api/auto_login
+      const form = document.createElement('form')
+      form.method = 'POST'
+      form.action = '/api/auto_login'
+
+      // Add CSRF token
+      const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+      const csrfInput = document.createElement('input')
+      csrfInput.type = 'hidden'
+      csrfInput.name = '_csrf_token'
+      csrfInput.value = csrfToken
+      form.appendChild(csrfInput)
+
+      document.body.appendChild(form)
+      form.submit()
+    })
+  }
+}
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {AutoResize, SpeechRecognition, TextToSpeech, MouthAnimation, AmplitudeGraph, TalkingHeadAvatar}
+  hooks: {AutoResize, SpeechRecognition, TextToSpeech, MouthAnimation, AmplitudeGraph, TalkingHeadAvatar, AutoLogin, Avatar3Hook}
 })
 
 // Show progress bar on live navigation and form submits

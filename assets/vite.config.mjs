@@ -1,7 +1,5 @@
 import { defineConfig } from 'vite'
 import { phoenixVitePlugin } from 'phoenix_vite'
-import tailwindcss from 'tailwindcss'
-import autoprefixer from 'autoprefixer'
 
 export default defineConfig({
   server: {
@@ -16,7 +14,10 @@ export default defineConfig({
   build: {
     manifest: true,
     rollupOptions: {
-      input: ["js/app.js", "css/app.css"],
+      input: [
+        "js/app.js",
+        "css/app.css"
+      ]
     },
     outDir: "../priv/static",
     emptyOutDir: false, // Don't delete existing static assets like images
@@ -30,12 +31,7 @@ export default defineConfig({
     },
   },
   css: {
-    postcss: {
-      plugins: [
-        tailwindcss,
-        autoprefixer,
-      ],
-    },
+    postcss: './postcss.config.cjs',
   },
   plugins: [
     phoenixVitePlugin({

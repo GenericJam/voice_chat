@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>HeadTTS Avatar Demo</title>
+
+<style>
+  body, html { width:100%; height:100%; height:100dvh; margin: 0; padding: 0; position: relative; background-color: #202020; color: white; overflow: hidden; }
+  #avatar { display: block; width:100%; height: 100%;  height:100dvh; margin: 0; padding: 0; }
+  #controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; position: absolute; top: 10px; left: 10px; right: 10px; max-height: Calc( 100% - 40px ); }
+  #text { display: block; flex: 1 1; max-width: 500px; min-width: min( Calc( 100vw - 40px ), 300px ); height: 30px; font-family: Arial; font-size: 20px; padding-left: 10px; }
+  #person { display: block; appearance: none; width: 85px; height: 36px; font-family: Arial; font-size: 20px; text-align-last: center; }
+  #speak { display: block; box-sizing: content-box; height: 30px; width: 70px; font-family: Arial; font-size: 20px; }
+  #info { display: block; position: absolute; bottom: 10px; left: 10px; right: 10px; font-family: Arial; font-size: 20px; }
+  #subtitles {
+    position: absolute; bottom: 6vh; left: 50%; transform: translateX(-50%);
+    font-family: Arial; font-size: max( min(5vh,5vw), 24px );
+    line-height: max( min(6vh,6vh), 20px ); z-index: 30;
+    height: Calc( 2 * max( min(6vh,6vh), 20px ));
+    max-height: Calc( 2 * max( min(6vh,6vh), 20px ));
+    width: 80%; text-align: center; overflow: hidden;
+  }
+</style>
+
+<script type="importmap">
+{ "imports":
+  {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js/+esm",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "talkinghead": "https://cdn.jsdelivr.net/gh/met4citizen/TalkingHead@1.5/modules/talkinghead.mjs",
+    "headtts": "/headtts/modules/headtts.mjs"
+  }
+}
+</script>
+
+<script type="module">
+  import { TalkingHead } from "talkinghead";
+  import { HeadTTS } from "headtts";
+
+  // Globals
+  let head; // TalkingHead instance
+  let headtts; // HeadTTS instance
+  const el = {}; // DOM elements based in `id` property
+
+  // Avatars
+  const persons = {
+
+    "julia": {
+      avatar: {
+        url: "/headtts/avatars/julia.glb",
+        body: "F",
+        avatarMood: "neutral"
+      },
+      view: {
+        cameraY: 0
+      },
+      setup: {
+        voice: "af_bella",
+        language: "en-us",
+        speed: 1,
+        audioEncoding: "wav"
+      }
+    },
+
+    "david": {
+      avatar: {
+        url: "/headtts/avatars/david.glb",
+        body: "M",
+        avatarMood: "neutral"
+      },
+      view: {
+        cameraY: -0.04 // David is taller, so compensate
+      },
+      setup: {
+        voice: "am_fenrir",
+        language: "en-us",
+        speed: 1,
+        audioEncoding: "wav"
+      }
+    }
+  };
+
+  /**
+  * Load the currently selected avatar and voice.
+  */
+  async function loadPerson() {
+
+    // Selected person
+    const person = persons[el.person.options[el.person.selectedIndex].value];
+
+    // Progress info
+    const info = { head: "-", headtts:"-" };
+    const updateInfo = (name,ev) => {
+      if ( ev ) {
+        if ( ev.lengthComputable ) {
+          info[name] = Math.min(100,Math.round(ev.loaded/ev.total * 100 )) + "%";
+        } else {
+          info[name] = Math.round(ev.loaded / 1000) + "KB";
+        }
+      }
+      let s = "Loading: " + info.head + " / " + info.headtts;
+      if ( info.hasOwnProperty("error") ) {
+        s += " ERROR:<br>&gt; " + info.error.replaceAll("\n","<br>&gt; ");
+      }
+      el.info.innerHTML = s;
+    }
+
+    // Load and show the avatar
+    try {
+      el.speak.disabled = true;
+      el.person.disabled = true;
+      el.info.style.display = 'block';
+      el.info.textContent = "Loading...";
+
+      await Promise.all([
+        head.showAvatar( person.avatar, updateInfo.bind(null,"head") ),
+        headtts.connect( null, updateInfo.bind(null,"headtts"))
+      ]);
+
+      // Setup view
+      head.setView(head.viewName, person.view );
+      head.cameraClock = 999; // Hack to prevent smooth transition
+
+      // Setup voice
+      headtts.setup( person.setup );
+
+      el.info.style.display = 'none';
+      el.person.disabled = false;
+      el.speak.disabled = false;
+    } catch (error) {
+      console.log(error);
+      info.error = error.message?.slice() || "Unknown error.";
+      updateInfo();
+    }
+
+  }
+
+  // SUBTITLES
+  let timerSubtitles; // Subtitles clear timer
+
+  /**
+  * Add the given word to subtitles and reset the clear timer.
+  * Play hand gestures for pre-defined keywords.
+  *
+  * @param {Object} msg HeadTTS response message
+  * @param {string} word Word that is been currently spoken
+  * @param {number} [ms=2000] Timeout for clearing subtitles, in milliseconds
+  */
+  function addSubtitle(msg, word, ms=2000) {
+
+    // Add the word and scroll to bottom
+    if ( word ) {
+      el.subtitles.textContent += word;
+      el.subtitles.scrollTop = el.subtitles.scrollHeight;
+    }
+
+    // Timeout to clear subtitles
+    if ( timerSubtitles ) {
+      clearTimeout(timerSubtitles);
+      timerSubtitles = null;
+    }
+    timerSubtitles = setTimeout( clearSubtitles, ms );
+  }
+
+
+  /**
+  * Clear subtitles.
+  *
+  * @param {number} [ms=0] Timeout for clearing subtitles, in milliseconds
+  */
+  function clearSubtitles(ms=0) {
+
+    if ( timerSubtitles ) {
+      clearTimeout(timerSubtitles);
+      timerSubtitles = null;
+    }
+    if ( ms > 0 ) {
+      timerSubtitles = setTimeout( clearSubtitles, ms );
+    } else {
+      el.subtitles.textContent = "";
+    }
+
+  }
+
+  // WEB PAGE LOADED
+  document.addEventListener('DOMContentLoaded', async function(e) {
+
+    // Get all DOM elements with an `id`
+    document.querySelectorAll('[id]').forEach( x => el[x.id] = x );
+
+    // Instantiate the TalkingHead class
+    head = new TalkingHead( el.avatar, {
+      ttsEndpoint: "N/A",
+      lipsyncModules: [],
+      cameraView: "upper",
+      mixerGainSpeech: 3,
+      cameraRotateEnable: false
+    });
+
+    // Instantiate HeadTTS text-to-speech class
+    headtts = new HeadTTS({
+      endpoints: ["webgpu", "wasm"], // Endpoints
+      languages: ["en-us"], // Language to be pre-loaded
+      voices: ["af_bella","am_fenrir"], // Voices to be pre-loaded
+      dictionaryURL: "/headtts/dictionaries/",
+      audioCtx: head.audioCtx, // Share audio context with TalkingHead
+      trace: 0,
+    });
+
+    // For debugging
+    window.head = head;
+    window.headtts = headtts;
+
+    // Speak and lipsync
+    headtts.onmessage = (message) => {
+      if ( message.type === "audio" ) {
+        try {
+          head.speakMarker( clearSubtitles );
+          head.speakAudio( message.data, {}, addSubtitle.bind(null,message) );
+        } catch(error) {
+          console.log(error);
+        }
+      } else if ( message.type === "custom" ) {
+        console.error("Received custom message, data=", message.data );
+      } else if ( message.type === "error" ) {
+        console.error("Received error message, error=", (message.data?.error || "Unknown error."));
+      }
+    }
+
+    // Load the currently chosen person
+    await loadPerson();
+
+    // Change the avatar
+    el.person.addEventListener("change", (event) => {
+      loadPerson();
+    });
+
+    // Speak when clicked
+    el.speak.addEventListener('click', async function () {
+      let text = document.getElementById('text').value;
+      if ( text ) {
+        headtts.synthesize({
+          input: text
+        });
+      }
+    });
+
+    // Pause animation when document is not visible
+    document.addEventListener("visibilitychange", async function (ev) {
+      if (document.visibilityState === "visible") {
+        head.start();
+      } else {
+        head.stop();
+      }
+    });
+
+  });
+
+</script>
+</head>
+
+<body>
+<div id="avatar"></div>
+<div id="controls">
+  <input id="text" type="text" placeholder="Text" value="Life is like a box of chocolates. You never know what you're gonna get.">
+  <select id="person" name="choice">
+    <option value="julia" selected>Julia</option>
+    <option value="david">David</option>
+  </select>
+  <input id="speak" type="button" value="Speak">
+</div>
+<div id="info"></div>
+<div id="subtitles"></div>
+</body>
+</html>

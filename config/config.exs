@@ -46,6 +46,21 @@ config :logger, :console,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Configure PythonX with uv and kokoro-tts dependencies
+config :pythonx, :uv_init,
+  pyproject_toml: """
+  [project]
+  name = "chat"
+  version = "0.1.0"
+  requires-python = "==3.13.*"
+  dependencies = [
+    "numpy==2.2.2",
+    "kokoro-onnx==0.4.9",
+    "soundfile==0.13.1"
+  ]
+  """,
+  uv_version: "0.8.2"
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

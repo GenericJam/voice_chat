@@ -30,6 +30,32 @@ defmodule ChatWeb.RobotDebugLive.Index do
   end
 
   @impl true
+  def handle_event("speak_terminator", _params, socket) do
+    socket =
+      socket
+      |> push_event("speak_text", %{
+        text: socket.assigns.test_phrase,
+        rate: socket.assigns.speech_rate,
+        target: "terminator"
+      })
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("speak_avatar", _params, socket) do
+    socket =
+      socket
+      |> push_event("speak_text", %{
+        text: socket.assigns.test_phrase,
+        rate: socket.assigns.speech_rate,
+        target: "avatar"
+      })
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event("change_speech_rate", %{"rate" => rate}, socket) do
     {rate_float, _} = Float.parse(rate)
     {:noreply, assign(socket, :speech_rate, rate_float)}

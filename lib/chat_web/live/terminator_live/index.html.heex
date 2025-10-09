@@ -1,0 +1,524 @@
+<div
+  class="h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex flex-col overflow-hidden"
+  id="terminator-container"
+>
+  <div phx-hook="TextToSpeech" id="tts-container" style="display: none;"></div>
+
+  <%!-- Header --%>
+  <div class="bg-white dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+    <div class="flex items-center gap-4">
+      <h1 class="text-lg font-medium text-gray-900 dark:text-gray-100">Terminator Demo</h1>
+      <span class="text-gray-500 dark:text-gray-400 text-sm">
+        SVG talking head animation
+      </span>
+    </div>
+    <div class="flex gap-2">
+      <%!-- Stop TTS Button --%>
+      <%= if @tts_speaking do %>
+        <button
+          phx-click="stop_tts"
+          class="bg-red-500 hover:bg-red-600 px-3 py-2 rounded text-sm text-white"
+          title="Stop speaking"
+        >
+          <.icon name="hero-stop" class="h-4 w-4" />
+        </button>
+      <% end %>
+
+      <%!-- Voice Selection Dropdown --%>
+      <div class="relative">
+        <button
+          phx-click="toggle_voice_settings"
+          class={[
+            "px-3 py-2 rounded text-sm",
+            if(@voice_settings_open,
+              do: "bg-blue-500 hover:bg-blue-600 text-white",
+              else:
+                "bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-100"
+            )
+          ]}
+          title="Voice settings"
+        >
+          <.icon name="hero-adjustments-horizontal" class="h-4 w-4" />
+        </button>
+
+        <%= if @voice_settings_open do %>
+          <div class="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+            <div class="p-4">
+              <div class="flex justify-between items-center mb-3">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Voice Settings
+                </h3>
+                <button
+                  phx-click="toggle_voice_settings"
+                  class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <.icon name="hero-x-mark" class="h-4 w-4" />
+                </button>
+              </div>
+
+              <%= if @selected_voice do %>
+                <div class="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                  <div class="flex justify-between items-start">
+                    <div>
+                      <div class="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">
+                        Current Voice
+                      </div>
+                      <div class="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                        {@selected_voice["name"]}
+                      </div>
+                      <div class="text-xs text-blue-600 dark:text-blue-400">
+                        {@selected_voice["lang"]}
+                      </div>
+                    </div>
+                    <button
+                      phx-click="test_voice"
+                      phx-value-voice_uri={@selected_voice["voiceURI"]}
+                      phx-value-text="Hello! This is how I sound when speaking your messages."
+                      class="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-800 hover:bg-blue-200 dark:hover:bg-blue-700 text-blue-700 dark:text-blue-300 rounded flex items-center gap-1"
+                      disabled={@voice_testing}
+                    >
+                      <%= if @voice_testing do %>
+                        <.icon name="hero-ellipsis-horizontal" class="h-3 w-3 animate-pulse" />
+                        Testing...
+                      <% else %>
+                        <.icon name="hero-play" class="h-3 w-3" /> Test
+                      <% end %>
+                    </button>
+                  </div>
+                </div>
+              <% end %>
+
+              <%= if @available_voices != %{} do %>
+                <div class="max-h-64 overflow-y-auto space-y-3">
+                  <%= for {region, voices} <- @available_voices do %>
+                    <div>
+                      <div class="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2 sticky top-0 bg-white dark:bg-gray-800 py-1">
+                        {region}
+                      </div>
+                      <div class="space-y-1">
+                        <%= for voice <- voices do %>
+                          <div class="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded text-sm group">
+                            <div class="flex-1 min-w-0">
+                              <div class="font-medium text-gray-900 dark:text-gray-100 truncate">
+                                {voice["name"]}
+                              </div>
+                              <div class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                                {voice["lang"]}
+                                <%= if voice["localService"] do %>
+                                  <span class="px-1 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded text-xs">
+                                    Local
+                                  </span>
+                                <% end %>
+                                <%= if voice["default"] do %>
+                                  <span class="px-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-400 rounded text-xs">
+                                    Default
+                                  </span>
+                                <% end %>
+                              </div>
+                            </div>
+                            <div class="flex gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                phx-click="test_voice"
+                                phx-value-voice_uri={voice["voiceURI"]}
+                                phx-value-text="Hello! This is a test of my voice."
+                                class="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300 rounded"
+                                title="Test voice"
+                                disabled={@voice_testing}
+                              >
+                                <%= if @voice_testing do %>
+                                  <.icon
+                                    name="hero-ellipsis-horizontal"
+                                    class="h-3 w-3 animate-pulse"
+                                  />
+                                <% else %>
+                                  <.icon name="hero-play" class="h-3 w-3" />
+                                <% end %>
+                              </button>
+                              <button
+                                phx-click="change_voice"
+                                phx-value-voice_uri={voice["voiceURI"]}
+                                class={[
+                                  "px-2 py-1 text-xs rounded transition-colors",
+                                  if(
+                                    @selected_voice &&
+                                      @selected_voice["voiceURI"] == voice["voiceURI"],
+                                    do: "bg-blue-500 text-white cursor-default",
+                                    else:
+                                      "bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300"
+                                  )
+                                ]}
+                                disabled={
+                                  @selected_voice &&
+                                    @selected_voice["voiceURI"] == voice["voiceURI"]
+                                }
+                              >
+                                <%= if @selected_voice && @selected_voice["voiceURI"] == voice["voiceURI"] do %>
+                                  <.icon name="hero-check" class="h-3 w-3" />
+                                <% else %>
+                                  Use
+                                <% end %>
+                              </button>
+                            </div>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+                  <div class="mb-2">
+                    <.icon name="hero-speaker-wave" class="h-8 w-8 mx-auto text-gray-400" />
+                  </div>
+                  <div>Loading voices...</div>
+                  <div class="text-xs mt-2">
+                    If no voices appear, your browser may not support text-to-speech.
+                  </div>
+                </div>
+              <% end %>
+
+              <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                  💡 <strong>Tip:</strong>
+                  Local voices provide better quality and work offline. Your choice is automatically saved.
+                </div>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <%!-- Main Content Area --%>
+  <div class="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-800 px-4">
+    <%!-- Terminator Avatar --%>
+    <div class="text-center">
+      <div
+        class={[
+          "w-96 h-96 rounded-full border-4 transition-all duration-300 relative mx-auto bg-gradient-to-b from-gray-800 to-gray-900",
+          if(@tts_speaking,
+            do: "border-red-500 shadow-lg shadow-red-500/50",
+            else: "border-gray-600 dark:border-gray-500"
+          )
+        ]}
+        phx-hook="MouthAnimation"
+        id="bot-avatar"
+      >
+        <svg viewBox="0 0 200 200" class="w-full h-full" id="terminator-head">
+          <defs>
+            <%!-- Chrome gradient --%>
+            <linearGradient id="chrome-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#e0e0e0;stop-opacity:1" />
+              <stop offset="50%" style="stop-color:#ffffff;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#a0a0a0;stop-opacity:1" />
+            </linearGradient>
+            <%!-- Red glow for eye --%>
+            <radialGradient id="eye-glow">
+              <stop offset="0%" style="stop-color:#ff0000;stop-opacity:1" />
+              <stop offset="50%" style="stop-color:#cc0000;stop-opacity:0.8" />
+              <stop offset="100%" style="stop-color:#880000;stop-opacity:0.3" />
+            </radialGradient>
+          </defs>
+
+          <%!-- Upper skull (fixed) --%>
+          <g id="upper-skull">
+            <%!-- Main skull dome --%>
+            <ellipse
+              cx="100"
+              cy="80"
+              rx="60"
+              ry="50"
+              fill="url(#chrome-gradient)"
+              stroke="#666"
+              stroke-width="2"
+            />
+
+            <%!-- Forehead detail --%>
+            <path d="M 60 70 Q 100 65 140 70" fill="none" stroke="#888" stroke-width="1.5" />
+            <path d="M 65 80 Q 100 76 135 80" fill="none" stroke="#999" stroke-width="1" />
+
+            <%!-- Left red glowing eye --%>
+            <circle cx="75" cy="85" r="12" fill="url(#eye-glow)" />
+            <circle cx="75" cy="85" r="8" fill="#ff0000" opacity="0.9" />
+            <circle cx="75" cy="85" r="5" fill="#ff3333" opacity="0.8" />
+            <circle cx="73" cy="83" r="2" fill="#ffaaaa" opacity="0.6" />
+
+            <%!-- Right red glowing eye --%>
+            <circle cx="125" cy="85" r="12" fill="url(#eye-glow)" />
+            <circle cx="125" cy="85" r="8" fill="#ff0000" opacity="0.9" />
+            <circle cx="125" cy="85" r="5" fill="#ff3333" opacity="0.8" />
+            <circle cx="123" cy="83" r="2" fill="#ffaaaa" opacity="0.6" />
+
+            <%!-- Eye socket details --%>
+            <circle
+              cx="75"
+              cy="85"
+              r="14"
+              fill="none"
+              stroke="#444"
+              stroke-width="1.5"
+              opacity="0.6"
+            />
+            <circle
+              cx="125"
+              cy="85"
+              r="14"
+              fill="none"
+              stroke="#444"
+              stroke-width="1.5"
+              opacity="0.6"
+            />
+
+            <%!-- Upper teeth (fixed to upper skull) --%>
+            <g id="upper-teeth">
+              <rect
+                x="70"
+                y="115"
+                width="8"
+                height="12"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+              <rect
+                x="79"
+                y="115"
+                width="8"
+                height="12"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+              <rect
+                x="88"
+                y="115"
+                width="8"
+                height="12"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+              <rect
+                x="97"
+                y="115"
+                width="8"
+                height="12"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+              <rect
+                x="106"
+                y="115"
+                width="8"
+                height="12"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+              <rect
+                x="115"
+                y="115"
+                width="8"
+                height="12"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+              <rect
+                x="124"
+                y="115"
+                width="8"
+                height="12"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+            </g>
+          </g>
+
+          <%!-- Lower jaw (animated) --%>
+          <g id="lower-jaw" style="transition: none;">
+            <%!-- Jaw structure --%>
+            <path
+              d="M 55 120 Q 50 140 60 155 L 140 155 Q 150 140 145 120 Z"
+              fill="url(#chrome-gradient)"
+              stroke="#666"
+              stroke-width="2"
+            />
+
+            <%!-- Jaw detail lines --%>
+            <path d="M 65 130 Q 100 135 135 130" fill="none" stroke="#888" stroke-width="1" />
+            <path d="M 60 145 Q 100 148 140 145" fill="none" stroke="#999" stroke-width="1" />
+
+            <%!-- Chin point --%>
+            <ellipse
+              cx="100"
+              cy="155"
+              rx="20"
+              ry="8"
+              fill="#b0b0b0"
+              stroke="#666"
+              stroke-width="1"
+            />
+
+            <%!-- Lower teeth --%>
+            <g id="lower-teeth">
+              <rect
+                x="70"
+                y="120"
+                width="8"
+                height="10"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+              <rect
+                x="79"
+                y="120"
+                width="8"
+                height="10"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+              <rect
+                x="88"
+                y="120"
+                width="8"
+                height="10"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+              <rect
+                x="97"
+                y="120"
+                width="8"
+                height="10"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+              <rect
+                x="106"
+                y="120"
+                width="8"
+                height="10"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+              <rect
+                x="115"
+                y="120"
+                width="8"
+                height="10"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+              <rect
+                x="124"
+                y="120"
+                width="8"
+                height="10"
+                fill="#f5f5f5"
+                stroke="#888"
+                stroke-width="0.5"
+              />
+            </g>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <%!-- Controls and Logs Section --%>
+  <div class="w-full pb-8">
+    <div class="text-center max-w-6xl mx-auto px-4">
+      <%!-- Jaw Movement Log --%>
+      <div class="mt-8 mb-4 w-full max-w-6xl mx-auto">
+        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+          Jaw Movement Log (newest left)
+        </h3>
+        <div
+          id="jaw-movement-log"
+          class="bg-gray-900 text-green-400 font-mono text-xs p-4 rounded border border-gray-700 h-96 overflow-y-auto"
+        >
+          <div class="text-gray-500">Waiting for speech...</div>
+        </div>
+      </div>
+
+      <%!-- Amplitude Graph --%>
+      <div class="mb-6 w-full max-w-4xl mx-auto">
+        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+          Audio Amplitude (Real-time)
+        </h3>
+        <canvas
+          id="amplitude-graph"
+          phx-hook="AmplitudeGraph"
+          width="800"
+          height="150"
+          class="w-full border border-gray-700 rounded bg-gray-900"
+        >
+        </canvas>
+      </div>
+
+      <%!-- Speech Rate Control --%>
+      <div class="mb-6 w-full max-w-md mx-auto">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Speech Rate: {@speech_rate}x
+        </label>
+        <form phx-change="change_speech_rate">
+          <input
+            type="range"
+            min="0.1"
+            max="2.0"
+            step="0.1"
+            value={@speech_rate}
+            name="rate"
+            class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+          />
+        </form>
+        <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <span>0.1x (Very Slow)</span>
+          <span>1.0x (Normal)</span>
+          <span>2.0x (Fast)</span>
+        </div>
+      </div>
+
+      <%!-- Test Button --%>
+      <div class="flex gap-4 justify-center">
+        <button
+          phx-click="speak_terminator"
+          disabled={@tts_speaking}
+          class={[
+            "px-6 py-3 rounded-lg text-lg font-medium transition-all duration-200 shadow-lg",
+            if(@tts_speaking,
+              do: "bg-gray-400 cursor-not-allowed text-gray-200",
+              else:
+                "bg-red-500 hover:bg-red-600 text-white hover:shadow-xl transform hover:scale-105"
+            )
+          ]}
+        >
+          <%= if @tts_speaking do %>
+            <div class="flex items-center gap-2">
+              <.icon name="hero-speaker-wave" class="h-5 w-5 animate-pulse" /> Speaking...
+            </div>
+          <% else %>
+            <div class="flex items-center gap-2">
+              <.icon name="hero-play" class="h-5 w-5" /> Speak
+            </div>
+          <% end %>
+        </button>
+      </div>
+
+      <%!-- Phrase Display --%>
+      <div class="mt-4 text-gray-600 dark:text-gray-400 text-sm">
+        Test phrase: "{@test_phrase}"
+      </div>
+    </div>
+  </div>
+</div>

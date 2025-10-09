@@ -17,6 +17,12 @@ defmodule ChatWeb.Router do
     plug :accepts, ["json"]
   end
 
+  scope "/api", ChatWeb do
+    pipe_through :api
+
+    post "/tts", TTSController, :synthesize
+  end
+
   scope "/", ChatWeb do
     pipe_through :browser
 
@@ -112,6 +118,9 @@ defmodule ChatWeb.Router do
       live "/chat/:id", ChatLive.Index, :show
 
       live "/robot_debug", RobotDebugLive.Index, :index
+      live "/terminator", TerminatorLive.Index, :index
+      live "/avatar", AvatarLive.Index, :index
+      live "/avatar2", Avatar2Live.Index, :index
     end
   end
 

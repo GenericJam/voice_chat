@@ -4,7 +4,7 @@
   "description": "JavaScript assets for Chat application",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && cp node_modules/@met4citizen/talkinghead/modules/lipsync-en.mjs ../priv/static/assets/",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
@@ -39,6 +39,6 @@
     "phoenix_html": "file:../deps/phoenix_html",
     "phoenix_live_view": "file:../deps/phoenix_live_view",
     "syllable": "^5.0.1",
-    "three": "^0.180.0"
+    "three": "^0.170.0"
   }
 }

@@ -505,29 +505,61 @@
         </div>
       </div>
 
-      <%!-- Test Button --%>
-      <button
-        phx-click="speak_test_phrase"
-        disabled={@tts_speaking}
-        class={[
-          "px-6 py-3 rounded-lg text-lg font-medium transition-all duration-200 shadow-lg",
-          if(@tts_speaking,
-            do: "bg-gray-400 cursor-not-allowed text-gray-200",
-            else:
-              "bg-blue-500 hover:bg-blue-600 text-white hover:shadow-xl transform hover:scale-105"
-          )
-        ]}
-      >
-        <%= if @tts_speaking do %>
-          <div class="flex items-center gap-2">
-            <.icon name="hero-speaker-wave" class="h-5 w-5 animate-pulse" /> Speaking...
-          </div>
-        <% else %>
-          <div class="flex items-center gap-2">
-            <.icon name="hero-play" class="h-5 w-5" /> Speak: "{@test_phrase}"
-          </div>
-        <% end %>
-      </button>
+      <%!-- Test Buttons --%>
+      <div class="flex gap-4 justify-center">
+        <%!-- Terminator Button --%>
+        <button
+          phx-click="speak_terminator"
+          disabled={@tts_speaking}
+          class={[
+            "px-6 py-3 rounded-lg text-lg font-medium transition-all duration-200 shadow-lg",
+            if(@tts_speaking,
+              do: "bg-gray-400 cursor-not-allowed text-gray-200",
+              else:
+                "bg-red-500 hover:bg-red-600 text-white hover:shadow-xl transform hover:scale-105"
+            )
+          ]}
+        >
+          <%= if @tts_speaking do %>
+            <div class="flex items-center gap-2">
+              <.icon name="hero-speaker-wave" class="h-5 w-5 animate-pulse" /> Speaking...
+            </div>
+          <% else %>
+            <div class="flex items-center gap-2">
+              <.icon name="hero-play" class="h-5 w-5" /> Terminator
+            </div>
+          <% end %>
+        </button>
+
+        <%!-- TalkingHead Button --%>
+        <button
+          phx-click="speak_avatar"
+          disabled={@tts_speaking}
+          class={[
+            "px-6 py-3 rounded-lg text-lg font-medium transition-all duration-200 shadow-lg",
+            if(@tts_speaking,
+              do: "bg-gray-400 cursor-not-allowed text-gray-200",
+              else:
+                "bg-green-500 hover:bg-green-600 text-white hover:shadow-xl transform hover:scale-105"
+            )
+          ]}
+        >
+          <%= if @tts_speaking do %>
+            <div class="flex items-center gap-2">
+              <.icon name="hero-speaker-wave" class="h-5 w-5 animate-pulse" /> Speaking...
+            </div>
+          <% else %>
+            <div class="flex items-center gap-2">
+              <.icon name="hero-play" class="h-5 w-5" /> 3D Avatar
+            </div>
+          <% end %>
+        </button>
+      </div>
+
+      <%!-- Phrase Display --%>
+      <div class="mt-4 text-gray-600 dark:text-gray-400 text-sm">
+        Test phrase: "{@test_phrase}"
+      </div>
 
       <%!-- Info --%>
       <div class="mt-6 text-gray-600 dark:text-gray-400 text-sm max-w-md mx-auto">

@@ -67,7 +67,8 @@ defmodule Chat.MixProject do
       {:mock, "~> 0.3.0", only: :test},
       {:req, "~> 0.5.15"},
       {:phoenix_vite, "~> 0.3.0"},
-      {:igniter, "~> 0.5", only: [:dev]}
+      {:igniter, "~> 0.5", only: [:dev]},
+      {:pythonx, "~> 0.2"}
     ]
   end
 

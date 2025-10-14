@@ -24,10 +24,8 @@ import {LiveSocket} from "phoenix_live_view"
 // import topbar from "../vendor/topbar"
 const topbar = { config: () => {}, show: () => {}, hide: () => {} }
 
-// Import avatar and animation modules
-import { MouthAnimation, AmplitudeGraph, processPreviousWord, processLastWord, animateSyllables } from "./terminator-animation.js"
-import { TalkingHeadAvatar } from "./avatar-3d.js"
-import { Avatar3Hook } from "./avatar3.js"
+// Import avatar module
+import { AvatarHook } from "./avatar.js"
 
 // Auto-resize textarea hook
 let AutoResize = {
@@ -802,7 +800,7 @@ let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {AutoResize, SpeechRecognition, TextToSpeech, MouthAnimation, AmplitudeGraph, TalkingHeadAvatar, AutoLogin, Avatar3Hook}
+  hooks: {AutoResize, SpeechRecognition, TextToSpeech, AutoLogin, AvatarHook}
 })
 
 // Show progress bar on live navigation and form submits

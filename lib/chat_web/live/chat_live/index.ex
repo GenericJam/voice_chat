@@ -6,6 +6,8 @@ defmodule ChatWeb.ChatLive.Index do
   alias Chat.Conversations
   alias Chat.Conversations.Conversation
   alias Chat.Ollama
+  alias Chat.TextChunker
+  alias Chat.AudioTiming
 
   @impl true
   def mount(_params, _session, socket) do
@@ -79,6 +81,8 @@ defmodule ChatWeb.ChatLive.Index do
       |> assign(:kokoro_voices, kokoro_voices)
       |> assign(:selected_avatar_voice, "af_bella")
       |> assign(:avatar_voice_settings_open, false)
+      |> assign(:text_chunker, TextChunker.new())
+      |> assign(:speaking_words, "")
 
     {:ok, socket}
   end
@@ -516,6 +520,19 @@ defmodule ChatWeb.ChatLive.Index do
   end
 
   @impl true
+  def handle_event("display_word", %{"word" => word}, socket) do
+    # Append word to speaking_words for real-time display
+    updated_words =
+      if socket.assigns.speaking_words == "" do
+        word
+      else
+        socket.assigns.speaking_words <> " " <> word
+      end
+
+    {:noreply, assign(socket, :speaking_words, updated_words)}
+  end
+
+  @impl true
   def handle_event(event, params, socket) do
     IO.inspect(other_event: event)
     IO.inspect(other_params: params)
@@ -578,6 +595,8 @@ defmodule ChatWeb.ChatLive.Index do
       |> assign(:speech_interim_text, "")
       |> assign(:speech_listening, false)
       |> assign(:auto_submit_countdown, 0)
+      |> assign(:text_chunker, TextChunker.new())
+      |> assign(:speaking_words, "")
       |> push_patch(to: ~p"/chat/#{conversation.id}")
 
     {:noreply, socket}
@@ -585,10 +604,42 @@ defmodule ChatWeb.ChatLive.Index do
 
   @impl true
   def handle_info({:token, token}, socket) do
+    # Add token to chunker and get any complete chunks
+    {updated_chunker, chunks} = TextChunker.add_token(socket.assigns.text_chunker, token)
+
+    # Synthesize audio for each chunk and push to client
+    socket =
+      Enum.reduce(chunks, socket, fn chunk, acc_socket ->
+        # Only synthesize chunks if auto-speak is enabled
+        if acc_socket.assigns.tts_auto_speak and acc_socket.assigns.tts_enabled do
+          case Chat.TTS.text_to_speech(chunk, acc_socket.assigns.selected_avatar_voice) do
+            {:ok, %{audio_data: audio_data, sample_rate: sample_rate}} ->
+              # Calculate audio duration and word timings
+              duration_ms = AudioTiming.calculate_duration(audio_data, sample_rate)
+              word_timings = AudioTiming.calculate_word_timings(chunk, duration_ms)
+
+              # Push audio chunk with word timings to client
+              push_event(acc_socket, "audio_chunk_ready", %{
+                audio: Base.encode64(audio_data),
+                text: chunk,
+                duration_ms: duration_ms,
+                words: word_timings
+              })
+
+            {:error, reason} ->
+              IO.inspect(tts_chunk_error: reason)
+              acc_socket
+          end
+        else
+          acc_socket
+        end
+      end)
+
     socket =
       socket
       |> assign(:bot_streaming, true)
       |> assign(:streaming_tokens, socket.assigns.streaming_tokens <> token)
+      |> assign(:text_chunker, updated_chunker)
       |> push_event("token_mouth_animation", %{token: token})
 
     {:noreply, socket}
@@ -596,6 +647,36 @@ defmodule ChatWeb.ChatLive.Index do
 
   @impl true
   def handle_info({:full_response, full_response}, %{assigns: assigns} = socket) do
+    # Finalize chunker to get any remaining text
+    {_updated_chunker, final_chunks} = TextChunker.finalize(assigns.text_chunker)
+
+    # Synthesize and send final chunks
+    socket =
+      Enum.reduce(final_chunks, socket, fn chunk, acc_socket ->
+        if acc_socket.assigns.tts_auto_speak and acc_socket.assigns.tts_enabled do
+          case Chat.TTS.text_to_speech(chunk, acc_socket.assigns.selected_avatar_voice) do
+            {:ok, %{audio_data: audio_data, sample_rate: sample_rate}} ->
+              # Calculate audio duration and word timings
+              duration_ms = AudioTiming.calculate_duration(audio_data, sample_rate)
+              word_timings = AudioTiming.calculate_word_timings(chunk, duration_ms)
+
+              push_event(acc_socket, "audio_chunk_ready", %{
+                audio: Base.encode64(audio_data),
+                text: chunk,
+                duration_ms: duration_ms,
+                words: word_timings,
+                final: true
+              })
+
+            {:error, reason} ->
+              IO.inspect(tts_final_chunk_error: reason)
+              acc_socket
+          end
+        else
+          acc_socket
+        end
+      end)
+
     # Create bot message
     message =
       Conversations.create_message!(%{
@@ -614,14 +695,7 @@ defmodule ChatWeb.ChatLive.Index do
       |> assign(:streaming_tokens, "")
       |> assign(:bot_streaming, false)
       |> assign(:dialog_input_disabled, false)
-
-    # Auto-speak bot response if enabled - route through 3D avatar
-    socket =
-      if assigns.tts_auto_speak and assigns.tts_enabled do
-        socket |> push_event("speak_avatar", %{text: full_response})
-      else
-        socket
-      end
+      |> assign(:text_chunker, TextChunker.new())
 
     {:noreply, socket}
   end

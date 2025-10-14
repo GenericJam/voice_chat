@@ -118,17 +118,8 @@ defmodule ChatWeb.Router do
       live "/messages/:id/show/edit", MessageLive.Show, :edit
 
       live "/chat", ChatLive.Index, :index
-
       live "/chat/new", ChatLive.Index, :new
-
       live "/chat/:id", ChatLive.Index, :show
-
-      live "/robot_debug", RobotDebugLive.Index, :index
-      live "/terminator", TerminatorLive.Index, :index
-      live "/avatar", AvatarLive.Index, :index
-      live "/avatar2", Avatar2Live.Index, :index
-      # live "/avatar3", Avatar3Live.Index, :index  # Disabled - avatar integrated into /chat
-      live "/score", ScoreLive.Index, :index
     end
   end
 

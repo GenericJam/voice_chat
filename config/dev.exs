@@ -26,7 +26,7 @@ config :chat, ChatWeb.Endpoint,
     certfile: System.get_env("CHAT_SSL_CERT_PATH") || "priv/certs/selfsigned.pem",
     ip: {0, 0, 0, 0}
   ],
-  check_origin: ["https://chat.boltbrain.ca"],
+  check_origin: ["https://chat.boltbrain.ca", "https://localhost:4001"],
   code_reloader: true,
   debug_errors: true,
   secret_key_base: "hVuaPSzoqb/WwsEOrLnIwIcnL28CZbK+4uVCdSZoLWuRw4p4qJ1cCN8mUyC+VS1i",

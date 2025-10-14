@@ -1,9 +1,11 @@
-// Avatar3 - HeadTTS Avatar with Server TTS
-// Extracted from inline script for better organization
+// Avatar - TalkingHead Avatar with Server TTS
+// Handles 3D avatar integration with Kokoro TTS
 
-export const Avatar3Hook = {
+import { TalkingHead } from '@met4citizen/talkinghead'
+
+export const AvatarHook = {
   async mounted() {
-    console.log('Avatar3Hook mounted');
+    console.log('AvatarHook mounted');
 
     // Initialize the avatar
     await this.initializeAvatar();
@@ -11,6 +13,13 @@ export const Avatar3Hook = {
     // Set up event handlers from LiveView
     this.handleEvent('speak_avatar', async (data) => {
       await this.speakWithServerTTS(data.text);
+    });
+
+    // Handle audio chunks pushed from server during streaming
+    this.handleEvent('audio_chunk_ready', async (data) => {
+      console.log('[Avatar] Received audio chunk for text:', data.text);
+      console.log('[Avatar] Word timings:', data.words);
+      await this.queueAudioChunk(data.audio, data.text, data.words, data.duration_ms);
     });
 
     // Handle voice changes from LiveView
@@ -24,8 +33,7 @@ export const Avatar3Hook = {
   },
 
   async initializeAvatar() {
-    // Dynamic import of TalkingHead from CDN
-    const { TalkingHead } = await import('https://cdn.jsdelivr.net/gh/met4citizen/TalkingHead@1.5/modules/talkinghead.mjs');
+    // Use the local TalkingHead library
 
     // Get DOM elements - look in the avatar container (this.el)
     this.avatarEl = this.el.querySelector('#avatar');
@@ -71,7 +79,7 @@ export const Avatar3Hook = {
     });
 
     // For debugging
-    window.avatar3Head = this.head;
+    window.avatarHead = this.head;
 
     // Load initial person
     await this.loadPerson();
@@ -146,6 +154,86 @@ export const Avatar3Hook = {
     } else {
       this.subtitlesEl.textContent = "";
     }
+  },
+
+  async queueAudioChunk(audioBase64, text, wordTimings, durationMs) {
+    try {
+      // Decode base64 audio
+      const audioData = Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0)).buffer;
+      const audioBuffer = await this.head.audioCtx.decodeAudioData(audioData);
+
+      // Use word timings from server
+      const words = wordTimings.map(wt => wt.word);
+      const wtimes = wordTimings.map(wt => Math.round(wt.start_ms));
+      const wdurations = wordTimings.map(wt => Math.round(wt.duration_ms));
+
+      const audioObj = {
+        audio: audioBuffer,
+        words: words,
+        wtimes: wtimes,
+        wdurations: wdurations
+      };
+
+      // Use the built-in speakAudio - let TalkingHead handle the queueing
+      this.head.speakAudio(audioObj, {}, (word) => this.addSubtitle(word + ' '));
+
+      // Schedule progressive word display in dialog panel
+      this.scheduleWordDisplay(wordTimings);
+
+      // Update queue timing for next chunk
+      this.updateQueueEndTime(durationMs);
+
+      console.log('[Avatar] Chunk queued successfully');
+
+    } catch (error) {
+      console.error('[Avatar] Error queueing audio chunk:', error);
+      this.infoEl.innerHTML = "ERROR:<br>&gt; " + error.message.replaceAll("\n", "<br>&gt; ");
+      this.infoEl.style.display = 'block';
+    }
+  },
+
+  scheduleWordDisplay(wordTimings) {
+    // Get the current playback start time (when this chunk will actually start playing)
+    // TalkingHead queues audio, so we need to account for any audio already playing
+    const audioContext = this.head.audioCtx;
+    const currentTime = audioContext.currentTime;
+
+    // Check if there's audio currently playing in the queue
+    const queueDelay = this.calculateQueueDelay();
+
+    wordTimings.forEach((wordTiming) => {
+      const displayTime = queueDelay + wordTiming.start_ms;
+
+      setTimeout(() => {
+        // Push word to LiveView for display in dialog panel
+        this.pushEvent('display_word', { word: wordTiming.word });
+      }, displayTime);
+    });
+  },
+
+  calculateQueueDelay() {
+    // Calculate how long until this chunk will start playing
+    // This is a simplified version - TalkingHead has internal queue timing
+    // For now, we'll track this ourselves
+    if (!this.queueEndTime) {
+      this.queueEndTime = Date.now();
+    }
+
+    const now = Date.now();
+    const delay = Math.max(0, this.queueEndTime - now);
+
+    return delay;
+  },
+
+  updateQueueEndTime(durationMs) {
+    const now = Date.now();
+    if (!this.queueEndTime || this.queueEndTime < now) {
+      this.queueEndTime = now + durationMs;
+    } else {
+      this.queueEndTime += durationMs;
+    }
+    // Add the 300ms break that TalkingHead adds
+    this.queueEndTime += 300;
   },
 
   async speakWithServerTTS(text) {

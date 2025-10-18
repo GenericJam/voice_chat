@@ -35,63 +35,75 @@
       </form>
     </div>
     <div class="flex gap-2">
+      <%!-- Speech Recognition Toggle Switch --%>
       <button
+        type="button"
         phx-click="toggle_speech"
         disabled={not @speech_supported}
+        role="switch"
+        aria-checked={@speech_listening}
         class={[
-          "px-3 py-2 rounded text-sm",
-          cond do
-            @speech_muted ->
-              "bg-orange-500 hover:bg-orange-600 text-white"
-
-            @speech_listening ->
-              "bg-red-500 hover:bg-red-600 text-white animate-pulse"
-
-            @speech_supported ->
-              "bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-100"
-
-            true ->
-              "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed"
-          end
+          "relative inline-flex h-8 w-14 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+          if(@speech_listening,
+            do: "bg-red-500",
+            else: "bg-gray-200 dark:bg-gray-600"
+          ),
+          if(not @speech_supported, do: "opacity-50 cursor-not-allowed", else: "")
         ]}
         title={
-          cond do
-            @speech_muted -> "Unmute microphone"
-            @speech_listening -> "Mute microphone"
-            @speech_supported -> "Start voice input"
-            true -> "Speech not supported"
+          if @speech_listening do
+            "Stop voice input"
+          else
+            if @speech_supported, do: "Start voice input", else: "Speech not supported"
           end
         }
       >
-        <.icon
-          name={
-            cond do
-              @speech_muted -> "hero-microphone-slash"
-              @speech_listening -> "hero-microphone"
-              true -> "hero-microphone"
-            end
-          }
-          class="h-4 w-4"
-        />
+        <span
+          class={[
+            "pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out flex items-center justify-center",
+            if(@speech_listening, do: "translate-x-6", else: "translate-x-0")
+          ]}
+        >
+          <.icon
+            name="hero-microphone"
+            class={[
+              "h-4 w-4",
+              if(@speech_listening, do: "text-red-500", else: "text-gray-400")
+            ]}
+          />
+        </span>
       </button>
 
-      <%!-- TTS Controls --%>
+      <%!-- TTS Auto-Speak Toggle Switch --%>
       <button
+        type="button"
         phx-click="toggle_tts"
+        role="switch"
+        aria-checked={@tts_auto_speak}
         class={[
-          "px-3 py-2 rounded text-sm",
+          "relative inline-flex h-8 w-14 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
           if(@tts_auto_speak,
-            do: "bg-green-500 hover:bg-green-600 text-white",
-            else:
-              "bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-100"
+            do: "bg-green-500",
+            else: "bg-gray-200 dark:bg-gray-600"
           )
         ]}
         title={if(@tts_auto_speak, do: "Disable auto-speak", else: "Enable auto-speak")}
       >
-        <.icon
-          name={if(@tts_speaking, do: "hero-speaker-wave", else: "hero-speaker-x-mark")}
-          class={["h-4 w-4", if(@tts_speaking, do: "animate-pulse", else: "")]}
-        />
+        <span
+          class={[
+            "pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out flex items-center justify-center",
+            if(@tts_auto_speak, do: "translate-x-6", else: "translate-x-0")
+          ]}
+        >
+          <.icon
+            name="hero-speaker-wave"
+            class={[
+              "h-4 w-4",
+              if(@tts_auto_speak, do: "text-green-900", else: "text-gray-400"),
+              if(@tts_speaking, do: "animate-pulse", else: "")
+            ]}
+          />
+        </span>
       </button>
 
       <%= if @tts_speaking do %>
@@ -282,22 +294,19 @@
           <% end %>
         <% end %>
 
-        <%!-- Streaming Message (typing) --%>
-        <%= if @bot_streaming and @streaming_tokens != "" do %>
+        <%!-- Streaming Message (typing indicator only, text will show in speaking_words) --%>
+        <%= if @bot_streaming and @speaking_words == "" do %>
           <div class="flex justify-start">
             <div class="max-w-[75%] flex flex-col items-start">
               <div class="bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed shadow-sm">
-                {@streaming_tokens}
+                <.spinner /> Thinking...
               </div>
-              <span class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-2 flex items-center gap-1">
-                <.spinner /> Typing...
-              </span>
             </div>
           </div>
         <% end %>
 
         <%!-- Live Message (speaking words being appended in real-time) --%>
-        <%= if @speaking_words != "" and not @bot_streaming do %>
+        <%= if @speaking_words != "" do %>
           <div class="flex justify-start">
             <div class="max-w-[75%] flex flex-col items-start">
               <div class="bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed shadow-sm">

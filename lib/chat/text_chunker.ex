@@ -62,7 +62,7 @@ defmodule Chat.TextChunker do
       iex> {chunker, _} = Chat.TextChunker.add_token(chunker, "Hello ")
       iex> {chunker, _} = Chat.TextChunker.add_token(chunker, "world")
       iex> Chat.TextChunker.finalize(chunker)
-      {%Chat.TextChunker{buffer: "", word_count: 0, chunks: []}, ["Hello world"]}
+      {%Chat.TextChunker{buffer: ""}, ["Hello world"]}
   """
   def finalize(chunker) do
     remaining = String.trim(chunker.buffer)

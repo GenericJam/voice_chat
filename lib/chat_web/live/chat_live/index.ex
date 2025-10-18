@@ -176,36 +176,10 @@ defmodule ChatWeb.ChatLive.Index do
   end
 
   @impl true
-  def handle_event("toggle_speech", _params, %{assigns: assigns} = socket) do
-    cond do
-      assigns.speech_listening and not assigns.speech_muted ->
-        # Currently listening -> go to muted state
-        socket =
-          socket
-          |> assign(:speech_muted, true)
-          |> assign(:auto_submit_countdown, 0)
-          |> push_event("mute_listening", %{})
-
-        {:noreply, socket}
-
-      assigns.speech_muted ->
-        # Currently muted -> resume listening
-        socket =
-          socket
-          |> assign(:speech_muted, false)
-          |> push_event("unmute_listening", %{})
-
-        {:noreply, socket}
-
-      true ->
-        # Not listening at all -> start listening
-        socket =
-          socket
-          |> assign(:speech_muted, false)
-          |> push_event("start_listening", %{})
-
-        {:noreply, socket}
-    end
+  def handle_event("toggle_speech", _params, socket) do
+    # Just send toggle event - let JavaScript decide based on its actual state
+    # This prevents state sync issues between server and client
+    {:noreply, push_event(socket, "toggle_listening", %{})}
   end
 
   @impl true
@@ -363,10 +337,6 @@ defmodule ChatWeb.ChatLive.Index do
     socket =
       socket
       |> assign(:tts_auto_speak, new_auto_speak)
-      |> put_flash(
-        :info,
-        if(new_auto_speak, do: "Auto-speak enabled", else: "Auto-speak disabled")
-      )
 
     {:noreply, socket}
   end
@@ -533,6 +503,12 @@ defmodule ChatWeb.ChatLive.Index do
   end
 
   @impl true
+  def handle_event("chunk_speaking_complete", _params, socket) do
+    # Clear speaking_words when a chunk finishes playing
+    {:noreply, assign(socket, :speaking_words, "")}
+  end
+
+  @impl true
   def handle_event(event, params, socket) do
     IO.inspect(other_event: event)
     IO.inspect(other_params: params)
@@ -626,6 +602,11 @@ defmodule ChatWeb.ChatLive.Index do
                 words: word_timings
               })
 
+            {:error, :empty_text} ->
+              # Chunk was only quotes or whitespace, skip it
+              IO.inspect(skipping_empty_chunk: chunk)
+              acc_socket
+
             {:error, reason} ->
               IO.inspect(tts_chunk_error: reason)
               acc_socket
@@ -650,32 +631,52 @@ defmodule ChatWeb.ChatLive.Index do
     # Finalize chunker to get any remaining text
     {_updated_chunker, final_chunks} = TextChunker.finalize(assigns.text_chunker)
 
-    # Synthesize and send final chunks
-    socket =
-      Enum.reduce(final_chunks, socket, fn chunk, acc_socket ->
-        if acc_socket.assigns.tts_auto_speak and acc_socket.assigns.tts_enabled do
-          case Chat.TTS.text_to_speech(chunk, acc_socket.assigns.selected_avatar_voice) do
-            {:ok, %{audio_data: audio_data, sample_rate: sample_rate}} ->
-              # Calculate audio duration and word timings
-              duration_ms = AudioTiming.calculate_duration(audio_data, sample_rate)
-              word_timings = AudioTiming.calculate_word_timings(chunk, duration_ms)
+    # Synthesize and send final chunks, marking the last one as final
+    {socket, chunk_count} =
+      final_chunks
+      |> Enum.with_index()
+      |> Enum.reduce({socket, length(final_chunks)}, fn {chunk, index}, {acc_socket, total} ->
+        is_last = index == total - 1
 
-              push_event(acc_socket, "audio_chunk_ready", %{
-                audio: Base.encode64(audio_data),
-                text: chunk,
-                duration_ms: duration_ms,
-                words: word_timings,
-                final: true
-              })
+        new_socket =
+          if acc_socket.assigns.tts_auto_speak and acc_socket.assigns.tts_enabled do
+            case Chat.TTS.text_to_speech(chunk, acc_socket.assigns.selected_avatar_voice) do
+              {:ok, %{audio_data: audio_data, sample_rate: sample_rate}} ->
+                # Calculate audio duration and word timings
+                duration_ms = AudioTiming.calculate_duration(audio_data, sample_rate)
+                word_timings = AudioTiming.calculate_word_timings(chunk, duration_ms)
 
-            {:error, reason} ->
-              IO.inspect(tts_final_chunk_error: reason)
-              acc_socket
+                push_event(acc_socket, "audio_chunk_ready", %{
+                  audio: Base.encode64(audio_data),
+                  text: chunk,
+                  duration_ms: duration_ms,
+                  words: word_timings,
+                  final: is_last
+                })
+
+              {:error, :empty_text} ->
+                # Chunk was only quotes or whitespace, skip it
+                IO.inspect(skipping_empty_final_chunk: chunk)
+                acc_socket
+
+              {:error, reason} ->
+                IO.inspect(tts_final_chunk_error: reason)
+                acc_socket
+            end
+          else
+            acc_socket
           end
-        else
-          acc_socket
-        end
+
+        {new_socket, total}
       end)
+
+    # If there were no final chunks, send an empty final signal
+    socket =
+      if chunk_count == 0 and assigns.tts_auto_speak and assigns.tts_enabled do
+        push_event(socket, "speaking_complete_signal", %{})
+      else
+        socket
+      end
 
     # Create bot message
     message =

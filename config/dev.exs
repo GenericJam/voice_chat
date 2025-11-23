@@ -19,14 +19,10 @@ config :chat, Chat.Repo,
 config :chat, ChatWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {0, 0, 0, 0}, port: 4000],
-  https: [
-    port: 4001,
-    keyfile: System.get_env("CHAT_SSL_KEY_PATH") || "priv/certs/selfsigned_key.pem",
-    certfile: System.get_env("CHAT_SSL_CERT_PATH") || "priv/certs/selfsigned.pem",
-    ip: {0, 0, 0, 0}
-  ],
-  check_origin: ["https://chat.boltbrain.ca", "https://localhost:4001"],
+  # Cloudflare Tunnel handles SSL, so plain HTTP is fine here
+  http: [ip: {127, 0, 0, 1}, port: 8000],
+  url: [host: "chat.boltbrain.ca", port: 443, scheme: "https"],
+  check_origin: ["https://chat.boltbrain.ca", "http://localhost:8000", "http://127.0.0.1:8000"],
   code_reloader: true,
   debug_errors: true,
   secret_key_base: "hVuaPSzoqb/WwsEOrLnIwIcnL28CZbK+4uVCdSZoLWuRw4p4qJ1cCN8mUyC+VS1i",

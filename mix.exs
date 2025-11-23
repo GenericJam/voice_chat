@@ -68,7 +68,10 @@ defmodule Chat.MixProject do
       {:req, "~> 0.5.15"},
       {:phoenix_vite, "~> 0.3.0"},
       {:igniter, "~> 0.5", only: [:dev]},
-      {:pythonx, "~> 0.2"}
+      {:pythonx, "~> 0.2"},
+      {:bumblebee, github: "elixir-nx/bumblebee", override: true},
+      {:emlx, github: "elixir-nx/emlx", branch: "main"},
+      {:nx, github: "elixir-nx/nx", sparse: "nx", override: true}
     ]
   end
 

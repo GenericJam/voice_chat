@@ -796,11 +796,125 @@ let AutoLogin = {
   }
 }
 
+// Server-side AudioRecorder hook (replaces Web Speech API)
+let ServerAudioRecorder = {
+  mounted() {
+    this.mediaRecorder = null
+    this.audioChunks = []
+    this.audioContext = null
+    this.isRecording = false
+
+    // Listen for toggle_listening event (same as old SpeechRecognition hook)
+    this.handleEvent("toggle_listening", () => {
+      if (this.isRecording) {
+        this.stopRecording()
+      } else {
+        this.startRecording()
+      }
+    })
+  },
+
+  async startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          sampleRate: 16000,
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+      })
+
+      this.audioChunks = []
+      this.mediaRecorder = new MediaRecorder(stream)
+      this.stream = stream
+
+      this.mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          this.audioChunks.push(event.data)
+        }
+      }
+
+      this.mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' })
+        await this.processAudio(audioBlob)
+
+        // Stop all tracks
+        this.stream.getTracks().forEach(track => track.stop())
+      }
+
+      this.mediaRecorder.start()
+      this.isRecording = true
+      this.pushEvent('speech_started', {})
+      console.log("Server-side recording started")
+    } catch (error) {
+      console.error("Error accessing microphone:", error)
+      this.pushEvent('speech_error', { error: `Could not access microphone: ${error.message}` })
+    }
+  },
+
+  stopRecording() {
+    if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
+      this.mediaRecorder.stop()
+      this.isRecording = false
+      this.pushEvent('speech_ended', {})
+      console.log("Server-side recording stopped")
+
+      // Don't auto-submit here - wait for transcription to complete
+      // Auto-submit will be triggered by the server after transcription
+    }
+  },
+
+  async processAudio(audioBlob) {
+    try {
+      // Create audio context if it doesn't exist
+      if (!this.audioContext) {
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+          sampleRate: 16000
+        })
+      }
+
+      // Convert blob to array buffer
+      const arrayBuffer = await audioBlob.arrayBuffer()
+
+      // Decode audio data
+      const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer)
+
+      // Get channel data (mono)
+      const channelData = audioBuffer.getChannelData(0)
+
+      // Convert Float32Array [-1, 1] to Int16Array (16-bit PCM)
+      const pcmData = new Int16Array(channelData.length)
+      for (let i = 0; i < channelData.length; i++) {
+        const s = Math.max(-1, Math.min(1, channelData[i]))
+        pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF
+      }
+
+      // Convert to base64 (chunk to avoid call stack overflow)
+      const bytes = new Uint8Array(pcmData.buffer)
+      let binary = ''
+      const chunkSize = 8192
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length))
+        binary += String.fromCharCode.apply(null, chunk)
+      }
+      const base64 = btoa(binary)
+
+      // Send to server for transcription
+      this.pushEvent("audio_data_server", { audio: base64 })
+      console.log("Audio sent to server for transcription, length:", pcmData.length)
+    } catch (error) {
+      console.error("Error processing audio:", error)
+      this.pushEvent('speech_error', { error: `Error processing audio: ${error.message}` })
+    }
+  }
+}
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {AutoResize, SpeechRecognition, TextToSpeech, AutoLogin, AvatarHook}
+  hooks: {AutoResize, SpeechRecognition, ServerAudioRecorder, TextToSpeech, AutoLogin, AvatarHook}
 })
 
 // Show progress bar on live navigation and form submits

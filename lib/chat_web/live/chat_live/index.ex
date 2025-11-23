@@ -263,6 +263,27 @@ defmodule ChatWeb.ChatLive.Index do
   end
 
   @impl true
+  def handle_event("audio_data_server", %{"audio" => audio_base64}, %{assigns: assigns} = socket) do
+    # Handle server-side speech transcription
+    parent = self()
+
+    Task.start(fn ->
+      received_at = System.monotonic_time(:millisecond)
+      IO.puts("\n=== AUDIO RECEIVED FOR TRANSCRIPTION at #{received_at} ===")
+
+      case transcribe_audio_server(audio_base64, received_at) do
+        {:ok, text} ->
+          send(parent, {:transcription_result_server, text})
+
+        {:error, reason} ->
+          send(parent, {:transcription_error_server, reason})
+      end
+    end)
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event("speech_error", %{"error" => error}, socket) do
     # Handle speech recognition errors gracefully
     error_message =
@@ -702,8 +723,79 @@ defmodule ChatWeb.ChatLive.Index do
   end
 
   @impl true
+  def handle_info({:transcription_result_server, text}, %{assigns: assigns} = socket) do
+    # Append transcribed text to message draft
+    current_text = String.trim(assigns.message_draft)
+
+    new_message =
+      if current_text == "", do: String.trim(text), else: "#{current_text} #{String.trim(text)}"
+
+    IO.puts("🎤 SERVER TRANSCRIPTION COMPLETE: #{inspect(text)}")
+    IO.puts("   Setting message_draft to: #{inspect(new_message)}")
+
+    socket =
+      socket
+      |> assign(:message_draft, new_message)
+      |> assign(:speech_interim_text, "")
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:transcription_error_server, reason}, socket) do
+    socket =
+      socket
+      |> put_flash(:error, "Transcription failed: #{reason}")
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_info(other, socket) do
     IO.inspect(handle_info_other: other)
     {:noreply, socket}
+  end
+
+  # Server-side audio transcription helper
+  defp transcribe_audio_server(audio_base64, received_at) do
+    try do
+      decode_start = System.monotonic_time(:millisecond)
+      # Decode base64 to binary
+      audio_binary = Base.decode64!(audio_base64)
+      decode_end = System.monotonic_time(:millisecond)
+      IO.puts("⏱️  Base64 decode: #{decode_end - decode_start}ms")
+      IO.puts("   Audio binary size: #{byte_size(audio_binary)} bytes")
+
+      convert_start = System.monotonic_time(:millisecond)
+      # Parse 16-bit signed little-endian PCM and normalize to [-1.0, 1.0]
+      audio_floats =
+        for <<sample::signed-little-16 <- audio_binary>> do
+          sample / 32768.0
+        end
+
+      convert_end = System.monotonic_time(:millisecond)
+
+      IO.puts("⏱️  PCM conversion: #{convert_end - convert_start}ms")
+      IO.puts(
+        "   Converted to #{length(audio_floats)} audio samples (#{Float.round(length(audio_floats) / 16000, 2)}s of audio)"
+      )
+
+      # Call WhisperServer to transcribe
+      whisper_start = System.monotonic_time(:millisecond)
+      result = Chat.WhisperServer.transcribe(audio_floats)
+      whisper_end = System.monotonic_time(:millisecond)
+
+      IO.puts("⏱️  Whisper transcription: #{whisper_end - whisper_start}ms")
+      IO.puts("⏱️  TOTAL (received to transcribed): #{whisper_end - received_at}ms")
+      IO.puts("   Result: #{inspect(result)}")
+      IO.puts("=== COMPLETE ===\n")
+
+      result
+    rescue
+      error ->
+        IO.puts("❌ Error in transcribe_audio_server: #{Exception.message(error)}")
+        IO.puts("   Stacktrace: #{inspect(__STACKTRACE__)}")
+        {:error, Exception.message(error)}
+    end
   end
 end
